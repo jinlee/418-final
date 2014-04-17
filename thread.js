@@ -4,10 +4,32 @@
 
 (function() {
 
+    function Latch(next) {
+	this.ready = false;
+	this.next = next;
+    }
+
+    Latch.prototype.register = function (nextFunc) {
+	if (this.ready) {
+	    nextFunc();
+	    return;
+	}
+	this.next = nextFunc;
+    }
+
+    Latch.prototype.runNext = function () {
+	this.ready = true;
+	if (this.next !== undefined) {
+	    this.next();
+	}
+    }
+
     function Seq(arr, required) {
-	this.arr = arr === 'undefined' ? [] : arr;
+	this.arr = arr === undefined ? [] : arr;
 	// TODO support later
-	this.required = required === 'undefined' ? null : required;
+	this.required = required === undefined ? null : required;
+	this.latch = new Latch();
+	this.latch.ready = true;
     }
 
     /** internal helper functions */
@@ -17,7 +39,7 @@
 	       '}';
     }
 
-    Seq.prototype.createWorker = function(f, cb) {
+    Seq.prototype.createWorker = function(f) {
 	var worker;
 	var fString = this.stringify(f);
 	try {
@@ -29,23 +51,49 @@
 	return worker;
     }
 
-    Seq.prototype.runWorker = function (f, data, cb) {
+    Seq.prototype.runWorker = function (f, index, checkDone) {
 	var seq = this;
-	var worker = this.createWorker(f, cb);
+	var worker = this.createWorker(f);
 	worker.onmessage = function (res) {
+	    console.log("heard back from index " + index);
 	    worker.terminate();
-	    cb(res.data);
-	    // TODO XXX Should we update seq.arr? Can we do this cleanly?
+	    if (res.data !== undefined) {
+		seq.arr[index] = res.data;
+	    }
+	    checkDone();
 	};
 	// run the worker! GO GO GO!
-	worker.postMessage(data);
+	worker.postMessage(seq.arr[index]);
     }
 
     /** external functions */
     Seq.prototype.map = function (f, cb) {
-	for (var i = 0; i < this.arr.length; i++) {
-	    this.runWorker(f, this.arr[i], cb);
+	if (this.arr.length === 0) {
+	    if (cb !== undefined) {
+		cb(this.arr);
+	    }
+	    return this;
 	}
+
+	var that = this;
+	var numResponse = 0;
+	var newLatch = new Latch();
+	var checkDone = function() {
+	    if (++numResponse === that.arr.length) {
+		if (cb !== undefined) {
+		    cb(that.arr);
+		}
+		newLatch.runNext();
+	    }
+	}
+
+	this.latch.register(function() {
+	    for (var i = 0; i < that.arr.length; i++) {
+		that.runWorker(f, i, checkDone);
+	    }
+	});
+	this.latch = newLatch;
+	return this;
     }
 
     this.Seq = Seq;

@@ -2,7 +2,27 @@
 
 <script>
 
-var seq = new Seq([0, 1, 2]);
-seq.map(function(data) { return data; },
-	function(res) { console.log("just heard back from " + res); });
+var add = function (n) {
+    return n + n;
+};
+
+var mult = function(n) {
+    return n * n;
+};
+
+var done = function(res) {
+    console.log(res);
+}
+
+var seq = new Seq([0, 1, 2, 3]);
+
+// simple map example
+seq.map(mult, done);
+
+// can also schedule the next map to be run when first finishes
+seq.map(add, done);
+
+// can also chain the maps, like so
+seq.map(add).map(add, done);
+
 </script>
