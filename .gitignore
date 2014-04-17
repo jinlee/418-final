@@ -6,6 +6,8 @@
 # unignore what we want
 !.gitignore
 !js/
+!thread.js
+!thread_test.html
 
 # ignore stuff inside js/
 js/src/build_DBG.OBJ/

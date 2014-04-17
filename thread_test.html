@@ -1,0 +1,8 @@
+<script src="thread.js"></script>
+
+<script>
+
+var seq = new Seq([0, 1, 2]);
+seq.map(function(data) { return data; },
+	function(res) { console.log("just heard back from " + res); });
+</script>
