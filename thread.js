@@ -35,7 +35,7 @@
 	worker.onmessage = function (res) {
 	    worker.terminate();
 	    cb(res.data);
-	    seq.arr = res.data;
+	    // TODO XXX Should we update seq.arr? Can we do this cleanly?
 	};
 	// run the worker! GO GO GO!
 	worker.postMessage(data);
