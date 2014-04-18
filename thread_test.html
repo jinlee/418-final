@@ -29,6 +29,9 @@ seq.map(add).map(add, done);
 /** you can also pass in an auxiliary data to all the workers.
  *
  *  BE WARNED THOUGH! The auxiliary data is COPIED to all the web workers.
+ *
+ *  The auxiliary needs to be passed with an identifier that the mapping
+ *  function will use. Example below.
  */
 
 var actualData = [10, 20, 30, 40];
@@ -39,5 +42,11 @@ var seq = new Seq(reverseIndices, { name: 'actualData', data: actualData});
 // this will return actualData, but in reverse
 seq.map(function(index) { return actualData[index]; },
 	function(res)   { console.log(res); });
+
+// the identifier of the auxiliary data don't have to match the variable name
+var seq = new Seq(reverseIndices, { name: 'foo', data: actualData});
+// so now the mapping function will use 'foo' insteadof 'actualData'
+seq.map(function(index) { return foo[index]; },
+	function(res)	{ console.log(res); });
 
 </script>
