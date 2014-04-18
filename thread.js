@@ -27,7 +27,7 @@
     function Seq(arr, required) {
 	this.arr = arr === undefined ? [] : arr;
 	// TODO support later
-	this.required = required === undefined ? null : required;
+	this.required = required;
 	this.latch = new Latch();
 	this.latch.ready = true;
     }
@@ -39,9 +39,22 @@
 	       '}';
     }
 
+    Seq.prototype.stringifyWithRequired = function (f) {
+	var preStr = 'var ' + this.required.name + ';\n';
+	return 'onmessage = function (msg) {\n' +
+		    this.required.name + ' = msg.data.required;\n' +
+	       '    postMessage( (' + f.toString() + ')(msg.data.data) );\n' +
+	       '}';
+    }
+
     Seq.prototype.createWorker = function(f) {
 	var worker;
-	var fString = this.stringify(f);
+	var fString;
+	if (this.required === undefined) {
+	    fString = this.stringify(f);
+	} else {
+	    fString = this.stringifyWithRequired(f);
+	}
 	try {
 	    var blob = new Blob([fString], { type: 'text/javascript' });
 	    worker = new Worker(window.URL.createObjectURL(blob));
@@ -55,7 +68,6 @@
 	var seq = this;
 	var worker = this.createWorker(f);
 	worker.onmessage = function (res) {
-	    console.log("heard back from index " + index);
 	    worker.terminate();
 	    if (res.data !== undefined) {
 		seq.arr[index] = res.data;
@@ -63,7 +75,12 @@
 	    checkDone();
 	};
 	// run the worker! GO GO GO!
-	worker.postMessage(seq.arr[index]);
+	if (this.required === undefined) {
+	    worker.postMessage(seq.arr[index]);
+	} else {
+	    worker.postMessage({ data: seq.arr[index],
+				 required: seq.required.data });
+	}
     }
 
     /** external functions */

@@ -25,4 +25,19 @@ seq.map(add, done);
 // can also chain the maps, like so
 seq.map(add).map(add, done);
 
+
+/** you can also pass in an auxiliary data to all the workers.
+ *
+ *  BE WARNED THOUGH! The auxiliary data is COPIED to all the web workers.
+ */
+
+var actualData = [10, 20, 30, 40];
+var reverseIndices = [3, 2, 1, 0];
+
+var seq = new Seq(reverseIndices, { name: 'actualData', data: actualData});
+
+// this will return actualData, but in reverse
+seq.map(function(index) { return actualData[index]; },
+	function(res)   { console.log(res); });
+
 </script>
