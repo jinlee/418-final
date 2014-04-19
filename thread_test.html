@@ -19,7 +19,7 @@ var seq = new Seq([0, 1, 2, 3]);
 // simple map example
 seq.map(mult, done);
 
-// can also schedule the next map to be run when first finishes
+// this map will be scheduled to be run when the first one finishes
 seq.map(add, done);
 
 // can also chain the maps, like so
@@ -37,16 +37,34 @@ seq.map(add).map(add, done);
 var actualData = [10, 20, 30, 40];
 var reverseIndices = [3, 2, 1, 0];
 
-var seq = new Seq(reverseIndices, { name: 'actualData', data: actualData});
+var seq = new Seq(reverseIndices);
+seq.require({ name: 'actualData', data: actualData });
 
 // this will return actualData, but in reverse
 seq.map(function(index) { return actualData[index]; },
-	function(res)   { console.log(res); });
+        function(res)   { console.log(res); });
 
 // the identifier of the auxiliary data don't have to match the variable name
-var seq = new Seq(reverseIndices, { name: 'foo', data: actualData});
-// so now the mapping function will use 'foo' insteadof 'actualData'
+var seq = new Seq(reverseIndices);
+seq.require({ name: 'foo', data: actualData });
+// but now the mapping function has to use 'foo' insteadof 'actualData'
 seq.map(function(index) { return foo[index]; },
-	function(res)	{ console.log(res); });
+        function(res)   { console.log(res); });
+
+// you can also require an auxiliary data structure exactly once:
+var seq = new Seq([0, 1, 2, 3]);
+var moreData = [100, 200, 300, 400];
+seq.require({ name: 'actualData', data: actualData }); // always there
+seq.requireOnce({ name: 'moreData', data: moreData }); // there for one map
+seq.map(function(index) { return moreData[index] + actualData[index]; },
+        function(res)   { console.log(res); });
+
+/** but on the next map, moreData can't be referenced.
+ *
+ *  the following would cause an error:
+
+seq.map(function(index) { return moreData[index]; },
+        function(res)   { console.log(res); });
+**/
 
 </script>
