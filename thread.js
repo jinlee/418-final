@@ -67,14 +67,12 @@
         return worker;
     }
 
-    Seq.prototype.runWorker = function (f, index, checkDone) {
+    Seq.prototype.runWorker = function (f, index, handleRes, checkDone) {
         var seq = this;
         var worker = this.createWorker(f);
         worker.onmessage = function (res) {
             worker.terminate();
-            if (res.data !== undefined) {
-                seq.arr[index] = res.data;
-            }
+            handleRes(res.data, index);
             checkDone();
         };
         // run the worker! GO GO GO!
@@ -82,7 +80,6 @@
                              required: seq.required,
                              _required: seq.latch.required });
     }
-
 
     /** external functions */
     Seq.prototype.require = function (req) {
@@ -94,28 +91,77 @@
     }
 
     Seq.prototype.map = function (f, cb) {
-        var that = this;
+        var seq = this;
         var numResponse = 0;
         var newLatch = new Latch();
+        var handleRes = function(res, index) {
+            if (res !== undefined) {
+                seq.arr[index] = res;
+            }
+        }
         var checkDone = function() {
-            if (++numResponse === that.arr.length) {
+            if (++numResponse === seq.arr.length) {
                 if (cb !== undefined) {
-                    cb(that.arr);
+                    cb(seq.arr);
                 }
                 newLatch.runNext();
             }
         }
 
         this.latch.register(function() {
-            if (that.arr.length === 0) {
+            if (seq.arr.length === 0) {
                 if (cb !== undefined) {
-                    cb(that.arr);
+                    cb(seq.arr);
                 }
                 newLatch.runNext();
                 return;
             }
-            for (var i = 0; i < that.arr.length; i++) {
-                that.runWorker(f, i, checkDone);
+            for (var i = 0; i < seq.arr.length; i++) {
+                seq.runWorker(f, i, handleRes, checkDone);
+            }
+        });
+        this.latch = newLatch;
+        return this;
+    }
+
+    Seq.prototype.filter = function (f, cb) {
+        var seq = this;
+        var numResponse = 0;
+        var temp = new Array(this.arr.length);
+        var newLatch = new Latch();
+        var handleRes = function(res, index) {
+            if (res !== undefined) {
+                temp[index] = res;
+            } else {
+                temp[index] = false;
+            }
+        }
+        var checkDone = function() {
+            if (++numResponse === seq.arr.length) {
+                var newArr = [];
+                for (var i = 0; i < temp.length; i++) {
+                    if (temp[i]) {
+                        newArr.push(seq.arr[i]);
+                    }
+                }
+                seq.arr = newArr;
+                if (cb !== undefined) {
+                    cb(seq.arr);
+                }
+                newLatch.runNext();
+            }
+        }
+
+        this.latch.register(function() {
+            if (seq.arr.length === 0) {
+                if (cb !== undefined) {
+                    cb(seq.arr);
+                }
+                newLatch.runNext();
+                return;
+            }
+            for (var i = 0; i < seq.arr.length; i++) {
+                seq.runWorker(f, i, handleRes, checkDone);
             }
         });
         this.latch = newLatch;
