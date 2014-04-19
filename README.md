@@ -51,3 +51,62 @@ make
 Now the shell should be located at `mozilla-central/js/src/build_DBG.OBJ/js/src/js`
 
 Run it using `./js -i`
+
+
+###Examples
+
+Here are some examples to get you started.
+```javascript
+var foo = function (n) {
+  return n * n;
+}
+
+var seq = new Seq([0, 1, 2, 3]);
+seq.map(foo); // returns [0, 1, 4, 9]
+```
+
+You can also pass in an callback function to be run after the map has finished.
+```javascript
+var done = function(res) {
+  console.log(res);
+}
+seq.map(foo, done);
+```
+
+You can chain multiple calls to map.
+```javascript
+seq.map(foo);
+seq.map(foo, done);
+// is the same as
+seq.map(foo).map(foo, done);
+```
+
+You can pass in an auxiliary data structure using `require`. Be warned though, because of how web workers are designed (they don't share the address space), what you pass into `require` need to be explicitly copied to each worker.
+```javascript
+var seq = new Seq([3, 2, 1, 0]);
+var aux = [10, 20, 30, 40];
+seq.require({ name: 'aux', data: aux});
+// the map function now has access to the 'aux' variable
+seq.map(function (index) { return aux[index]; },
+        function (res) { console.log(res); });
+// returns the reverse of aux, [40, 30, 20, 10]
+```
+
+Here's a non-trivial example using `filter`.
+```javascript
+var primes = new Seq(_.range(1000)); // _.range(n) returns [0, ..., n - 1]
+
+// a simple prime checker
+var isPrime = function (n) {
+  if (n === 0 || n === 1) {
+    return false;
+  }
+  for (var i = 2; i < n; i++) {
+    if (n % i === 0) {
+      return false;
+    }
+  }
+  return true;
+}
+primes.filter(isPrime, function (res) { console.log(res); }); // returns only primes!
+```
