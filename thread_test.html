@@ -67,4 +67,19 @@ seq.map(function(index) { return moreData[index]; },
         function(res)   { console.log(res); });
 **/
 
+var isPrime = function (n) {
+    if (n === 0 || n === 1) {
+        return false;
+    }
+    for (var i = 2; i < n; i++) {
+        if (n % i === 0) {
+            return; // undefined return val defauls to false
+        }
+    }
+    return true;
+}
+
+var stress = new Seq(_.range(1000));
+stress.filter(isPrime, done);
+
 </script>

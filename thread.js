@@ -25,11 +25,12 @@
         }
     }
 
-    function Seq(arr) {
+    function Seq(arr, max) {
         this.arr = arr === undefined ? [] : arr;
         this.required = [];
         this.latch = new Latch();
         this.latch.ready = true;
+        this.max = max === undefined ? 32 : max;
     }
 
     /** internal helper functions */
@@ -67,12 +68,13 @@
         return worker;
     }
 
-    Seq.prototype.runWorker = function (f, index, handleRes, checkDone) {
+    Seq.prototype.runWorker = function (f, index, handleRes, checkDone, worker) {
         var seq = this;
-        var worker = this.createWorker(f);
+        if (worker === undefined) {
+            worker = this.createWorker(f);
+        }
         worker.onmessage = function (res) {
-            worker.terminate();
-            handleRes(res.data, index);
+            handleRes(worker, res.data, index);
             checkDone();
         };
         // run the worker! GO GO GO!
@@ -93,10 +95,16 @@
     Seq.prototype.map = function (f, cb) {
         var seq = this;
         var numResponse = 0;
+        var numStarted = 0;
         var newLatch = new Latch();
-        var handleRes = function(res, index) {
+        var handleRes = function(worker, res, index) {
             if (res !== undefined) {
                 seq.arr[index] = res;
+            }
+            if (numStarted < seq.arr.length) {
+                seq.runWorker(f, numStarted++, handleRes, checkDone, worker);
+            } else {
+                worker.terminate();
             }
         }
         var checkDone = function() {
@@ -116,9 +124,11 @@
                 newLatch.runNext();
                 return;
             }
-            for (var i = 0; i < seq.arr.length; i++) {
+            var max = seq.arr.length < seq.max ? seq.arr.length : seq.max;
+            for (var i = 0; i < max; i++) {
                 seq.runWorker(f, i, handleRes, checkDone);
             }
+            numStarted = max;
         });
         this.latch = newLatch;
         return this;
@@ -127,13 +137,19 @@
     Seq.prototype.filter = function (f, cb) {
         var seq = this;
         var numResponse = 0;
+        var numStarted = 0;
         var temp = new Array(this.arr.length);
         var newLatch = new Latch();
-        var handleRes = function(res, index) {
+        var handleRes = function(worker, res, index) {
             if (res !== undefined) {
                 temp[index] = res;
             } else {
                 temp[index] = false;
+            }
+            if (numStarted < seq.arr.length) {
+                seq.runWorker(f, numStarted++, handleRes, checkDone, worker);
+            } else {
+                worker.terminate();
             }
         }
         var checkDone = function() {
@@ -160,9 +176,11 @@
                 newLatch.runNext();
                 return;
             }
-            for (var i = 0; i < seq.arr.length; i++) {
+            var max = seq.arr.length < seq.max ? seq.arr.length : seq.max;
+            for (var i = 0; i < max; i++) {
                 seq.runWorker(f, i, handleRes, checkDone);
             }
+            numStarted = max;
         });
         this.latch = newLatch;
         return this;
