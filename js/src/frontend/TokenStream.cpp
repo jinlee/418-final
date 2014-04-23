@@ -278,7 +278,11 @@ TokenStream::TokenStream(ExclusiveContext *cx, const ReadOnlyCompileOptions &opt
     tokenbuf(cx),
     cx(cx),
     originPrincipals(options.originPrincipals(cx)),
-    strictModeGetter(smg)
+    strictModeGetter(smg),
+    numFound(0),
+    next_index(-1),
+    mpPosBegin(0),
+    mpPosEnd(0)
 {
     // The caller must ensure that a reference is held on the supplied principals
     // throughout compilation.
@@ -320,6 +324,8 @@ TokenStream::TokenStream(ExclusiveContext *cx, const ReadOnlyCompileOptions &opt
     isExprEnding[TOK_RP]    = 1;
     isExprEnding[TOK_RB]    = 1;
     isExprEnding[TOK_RC]    = 1;
+
+    fillMPTokens();
 }
 
 #ifdef _MSC_VER
@@ -520,6 +526,15 @@ TokenStream::tell(Position *pos)
     pos->currentToken = currentToken();
     for (unsigned i = 0; i < lookahead; i++)
         pos->lookaheadTokens[i] = tokens[(cursor + 1 + i) & ntokensMask];
+
+    // 15-418 addition
+    pos->numFound = numFound;
+    pos->next_index = next_index;
+    for (unsigned i = 0; i < _MP_LENGTH_; i++) {
+        pos->mpTokens[i] = mpTokens[i];
+    }
+    pos->mpPosBegin = mpPosBegin;
+    pos->mpPosEnd = mpPosEnd;
 }
 
 void
@@ -535,6 +550,15 @@ TokenStream::seek(const Position &pos)
     tokens[cursor] = pos.currentToken;
     for (unsigned i = 0; i < lookahead; i++)
         tokens[(cursor + 1 + i) & ntokensMask] = pos.lookaheadTokens[i];
+
+    // 15-418 addition
+    numFound = pos.numFound;
+    next_index = pos.next_index;
+    for (unsigned i = 0; i < _MP_LENGTH_; i++) {
+        mpTokens[i] = pos.mpTokens[i];
+    }
+    mpPosBegin = pos.mpPosBegin;
+    mpPosEnd = pos.mpPosEnd;
 }
 
 void
@@ -1040,6 +1064,36 @@ static const uint8_t firstCharKinds[] = {
 static_assert(LastCharKind < (1 << (sizeof(firstCharKinds[0]) * 8)),
               "Elements of firstCharKinds[] are too small");
 
+void
+TokenStream::fillMPTokens() {
+    unsigned i = 0;
+    JSAtom *seq = Atomize(cx, "__seq", 5);
+    JSAtom *Seq = Atomize(cx, "Seq", 3);
+    JSAtom *us = Atomize(cx, "_", 1);
+    JSAtom *range = Atomize(cx, "range", 5);
+    JSAtom *arr = Atomize(cx, "arr", 3);
+    JSAtom *length = Atomize(cx, "length", 6);
+
+    mpTokens[i++].type = TOK_VAR;
+    mpTokens[i].type = TOK_NAME; mpTokens[i++].setName(seq->asPropertyName());
+    mpTokens[i++].type = TOK_ASSIGN;
+    mpTokens[i++].type = TOK_NEW;
+    mpTokens[i].type = TOK_NAME; mpTokens[i++].setName(Seq->asPropertyName());
+    mpTokens[i++].type = TOK_LP;
+    mpTokens[i].type = TOK_NAME; mpTokens[i++].setName(us->asPropertyName());
+    mpTokens[i++].type = TOK_DOT;
+    mpTokens[i].type = TOK_NAME; mpTokens[i++].setName(range->asPropertyName());
+    mpTokens[i++].type = TOK_LP;
+    mpTokens[i].type = TOK_NAME; mpTokens[i++].setName(arr->asPropertyName());
+    mpTokens[i++].type = TOK_DOT;
+    mpTokens[i].type = TOK_NAME; mpTokens[i++].setName(length->asPropertyName());
+    mpTokens[i++].type = TOK_RP;
+    mpTokens[i++].type = TOK_RP;
+    mpTokens[i++].type = TOK_SEMI;
+
+    JS_ASSERT(i == _MP_LENGTH_);
+}
+
 TokenKind
 TokenStream::getTokenInternal(Modifier modifier)
 {
@@ -1535,6 +1589,21 @@ TokenStream::getTokenInternal(Modifier modifier)
                 bool shouldWarn = getChar() == '@';
                 if (!getDirectives(false, shouldWarn))
                     goto error;
+            }
+
+            // 15-418 addition
+            if (c == '!') {
+                while ((c = getChar()) != EOF && c != '\n')
+                    continue;
+                ungetChar(c);
+                numFound++;
+
+                mpPosBegin = tp->pos.begin;
+                mpPosEnd = userbuf.addressOfNextRawChar() - userbuf.base();
+
+                *tp = mpTokens[0];
+                next_index = 1;
+                goto out;
             }
 
         skipline:
