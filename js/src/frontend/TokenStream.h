@@ -7,6 +7,9 @@
 #ifndef frontend_TokenStream_h
 #define frontend_TokenStream_h
 
+//15-418 addition
+#define _MP_LENGTH_ 16
+
 // JS lexical scanner interface.
 
 #include "mozilla/DebugOnly.h"
@@ -507,6 +510,19 @@ class MOZ_STACK_CLASS TokenStream
             return tt;
         }
 
+        // 15-418 addition
+        if (next_index != -1) {
+            Token *tp = newToken(0);
+            tp->pos.begin = mpPosBegin;
+            tp->pos.end = mpPosEnd;
+            *tp = mpTokens[next_index++];
+            flags.isDirtyLine = true;
+            if (next_index == _MP_LENGTH_) {
+                next_index = -1;
+            }
+            return tp->type;
+        }
+
         return getTokenInternal(modifier);
     }
 
@@ -520,6 +536,9 @@ class MOZ_STACK_CLASS TokenStream
     TokenKind peekToken(Modifier modifier = None) {
         if (lookahead != 0)
             return tokens[(cursor + 1) & ntokensMask].type;
+        // 15-418 addition
+        if (next_index != -1)
+            return mpTokens[next_index].type;
         TokenKind tt = getTokenInternal(modifier);
         ungetToken();
         return tt;
@@ -609,6 +628,13 @@ class MOZ_STACK_CLASS TokenStream
         Token currentToken;
         unsigned lookahead;
         Token lookaheadTokens[maxLookahead];
+
+        // 15-418 addition
+        unsigned numFound;
+        int next_index;
+        Token mpTokens[_MP_LENGTH_];
+        uint32_t mpPosBegin;
+        uint32_t mpPosEnd;
     };
 
     void advance(size_t position);
@@ -832,6 +858,7 @@ class MOZ_STACK_CLASS TokenStream
         SkipRoot skipBase, skipLimit, skipPtr;
     };
 
+    void fillMPTokens();
     TokenKind getTokenInternal(Modifier modifier);
 
     int32_t getChar();
@@ -907,6 +934,13 @@ class MOZ_STACK_CLASS TokenStream
     // Bug 846011
     SkipRoot            linebaseSkip;
     SkipRoot            prevLinebaseSkip;
+
+    // 15-418 addition
+    unsigned            numFound;
+    Token               mpTokens[_MP_LENGTH_];
+    int                 next_index;
+    uint32_t            mpPosBegin;
+    uint32_t            mpPosEnd;
 };
 
 // Steal one JSREPORT_* bit (see jsapi.h) to tell that arguments to the error
