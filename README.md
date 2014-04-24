@@ -6,51 +6,40 @@ We'll be doing this by using web workers and hacking on Mozilla's Spidermonkey.
 
 ###Get the code from Mozilla
 
-First get the correct build from Mozilla:
+We worked on Firefox release 28.0. It's best to obtain the same version before swapping in our changes. Otherwise there will most definitely be strange build errors.
 
-```
-hg clone -r 177109 http://hg.mozilla.org/mozilla-central mozilla-central
-```
+The easiest way to obtain this release is to go [here](ftp://ftp.mozilla.org/pub/mozilla.org/firefox/releases/28.0/source/) and download the source tar.
 
-Note that to avoid errors, it's best to clone revision `177109`. This is the revision that we worked with. Also this part may take a while... There's a lot of code!
-
-Now you can clone this repo, and put the js/ folder into the top level directory that you just created.
+The other option is to get it from their mercurial repository, but that will take much longer as it comes with all the revisions.
 
 ###Get the code from this repo
 
-There are two options here. The hack-ish way is to simply git clone this directory, which gives you the 418-final/ folder. Inside is the js/ folder that needs to be stuck into mozilla-central for the build to work.
-
-So you can do this by copying the contents of 418-final/* (including .git and .gitignore) into mozilla-central/
-
-
-The second option is to do the following
+Now that you have the code for Firefox, you can now swap in the files from this project. The easiest way to do this is to do the following:
 
 ```
-cd mozilla-central
+cd mozilla-release
 mv js js_backup
 git init
 git remote add origin https://github.com/jinslee/418-final.git
 git pull origin master
 ```
 
-Now you should be ready to build!
+Now you are ready to build!
 
 ###Building
 
 Building the js shell
 
 ```
-cd mozilla-central/js/src
+cd mozilla-release/js/src
 autoconf213 # or autoconf2.13 or autoconf-2.13
 mkdir build_DBG.OBJ 
 cd build_DBG.OBJ 
-../configure --enable-debug --disable-optimize
+../configure
 make
 ```
 
-Now the shell should be located at `mozilla-central/js/src/build_DBG.OBJ/js/src/js`
-
-Run it using `./js -i`
+Run the shell using `./js -i`
 
 
 ###Examples
