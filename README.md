@@ -8,7 +8,7 @@ We'll be doing this by using web workers and hacking on Mozilla's Spidermonkey.
 
 We worked on Firefox release 28.0. It's best to obtain the same version before swapping in our changes. Otherwise there will most definitely be strange build errors.
 
-The easiest way to obtain this release is to go [here](ftp://ftp.mozilla.org/pub/mozilla.org/firefox/releases/28.0/source/) and download the source tar.
+The easiest way to obtain this release is to go to <a href="https://ftp.mozilla.org/pub/mozilla.org/firefox/releases/28.0/source/">here</a> and download the source tar.
 
 The other option is to get it from their mercurial repository, but that will take much longer as it comes with all the revisions.
 
