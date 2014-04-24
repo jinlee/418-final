@@ -7,36 +7,29 @@ title: documentation
 
 ### Get the code from Mozilla ###
 
-First get the correct build from Mozilla:
+We worked on Firefox release 28.0. It's best to obtain the same version before
+swapping in our changes. Otherwise there will most definitely be strange build
+errors.
 
-    hg clone -r 177109 http://hg.mozilla.org/mozilla-central mozilla-central
+The easiest way to obtain this release is to go to
+<a href="ftp://ftp.mozilla.org/pub/mozilla.org/firefox/releases/28.0/source/">here</a>
+and download the source tar.
 
-Note that to avoid errors, it's best to clone revision `177109`. This is the
-revision that we worked with. Also this part may take a while... There's a lot
-of code!
+The other option is to get it from their mercurial repository, but that will
+take much longer as it comes with all the revisions.
 
-Now you can clone this repo, and put the `js/` folder into the top level
-directory that you just created. This step is covered below.
+###Get the code from this repo
 
-### Get the code from this repo ###
+Now that you have the code for Firefox, you can now swap in the files from this
+project. The easiest way to do this is to do the following:
 
-There are two options here. The hack-ish way is to simply git clone this
-directory, which gives you the `418-final/` folder. Inside is the `js/` folder
-that needs to be stuck into mozilla-central for the build to work.
-
-So you can do this by copying the contents of `418-final/*` into
-`mozilla-central/`. If you want to be able to get updates and make commits,
-include the `.git` and `.gitignore` also.
-
-The second option is to do the following:
-
-    cd mozilla-central
+    cd mozilla-release
     mv js js_backup
     git init
     git remote add origin https://github.com/jinslee/418-final.git
     git pull origin master
 
-Now you should be ready to build!
+Now you are ready to build!
 
 ### Building ###
 
