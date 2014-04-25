@@ -29,12 +29,12 @@ But their usage isn't as straightforward as using pthread. We wanted to provide
 a simple developer facing api that abstracts away their usage. Thus we chose to
 implement `map`, `filter`, and `reduce`. Here's an example of their usage:
 
-``` javascript
+{% highlight javascript %}
 var seq = new Seq([10, 30, 50, 70]);
 seq.map(function (n)   { return n * n; },
         function (res) { print(res); });
 // the second function is a callback that runs once the map has finished
-```
+{% endhighlight %}
 
 More examples can be found in the [Documentation](guide.html) section
 
@@ -43,12 +43,12 @@ More examples can be found in the [Documentation](guide.html) section
 In OpenMP, you can declare certain parts of the code to be safe for
 parallelization. For example:
 
-``` c
+{% highlight cpp %}
 #pragma omp parallel for
 for (int i = 0; i < N; i++) {
     foo(i);
 }
-```
+{% endhighlight %}
 
 Declares that each iteration of the for loop can be executed in parallel without
 affecting the correctness of the program. This kind of declaration allows the
@@ -62,7 +62,7 @@ mentioned above. Here's a very simple demo of how it works.
 
 Consider the following code, annotated with the special 'triggers'.
 
-``` javascript
+{% highlight javascript %}
 var arr = [10, 20, 50, 100];
 //! indexer:i data:arr ret:arr[i]
 for (var i = 0; i < arr.length; i++) {
@@ -70,7 +70,7 @@ for (var i = 0; i < arr.length; i++) {
 }
 //?
 print(arr);
-```
+{% endhighlight %}
 
 The two triggers are `//!` and `//?`. The `//!` denotes the beginning of a for
 loop that can be executed in parallel. `//?` denotes the end of the for loop.
@@ -82,7 +82,7 @@ information, but due to the contraints of web workers, this was necessary.
 Using these triggers and extra information, the parser will generate the
 following code.
 
-``` javascript
+{% highlight javascript %}
 var arr = [10, 20, 50, 100];
 var __seq = new Seq(_.range(arr.length));
 __seq.require({ name: 'arr', data: arr });
@@ -93,7 +93,7 @@ seq.map(function (i) {
     arr = res;
     print(arr);
 });
-```
+{% endhighlight %}
 
 As you can see, it's a quite a bit of extra code that gets generated. I think
 this is an indication that this OpenMP style parallelization is useful. It makes
