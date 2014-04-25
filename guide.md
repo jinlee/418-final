@@ -35,14 +35,14 @@ Now you are ready to build!
 
 Building the js shell
 
-~~~
+```
 cd mozilla-central/js/src
 autoconf213 # or autoconf2.13 or autoconf-2.13
 mkdir build_DBG.OBJ 
 cd build_DBG.OBJ 
 ../configure
 make
-~~~
+```
 
 Now the shell can be run using `./js -i`
 
@@ -50,39 +50,39 @@ Now the shell can be run using `./js -i`
 
 Here are some examples to get you started.
 
-~~~ javascript
+``` javascript
 var foo = function (n) {
   return n * n;
 }
 
 var seq = new Seq([0, 1, 2, 3]);
 seq.map(foo); // returns [0, 1, 4, 9]
-~~~
+```
 
 
 You can also pass in an callback function to be run after the map has finished.
 
-~~~ javascript
+``` javascript
 var done = function(res) {
   console.log(res);
 }
 seq.map(foo, done);
-~~~
+```
 
 You can chain multiple calls to map.
 
-~~~ javascript
+``` javascript
 seq.map(foo);
 seq.map(foo, done);
 // is the same as
 seq.map(foo).map(foo, done);
-~~~
+```
 
 You can pass in an auxiliary data structure using `require`. Be warned though,
 because of how web workers are designed (they don't share the address space),
 what you pass into `require` need to be explicitly copied to each worker.
 
-~~~ javascript
+``` javascript
 var seq = new Seq([3, 2, 1, 0]);
 var aux = [10, 20, 30, 40];
 seq.require({ name: 'aux', data: aux});
@@ -90,11 +90,11 @@ seq.require({ name: 'aux', data: aux});
 seq.map(function (index) { return aux[index]; },
         function (res) { console.log(res); });
 // returns the reverse of aux, [40, 30, 20, 10]
-~~~
+```
 
 Here's a non-trivial example using `filter`.
 
-~~~ javascript
+``` javascript
 var primes = new Seq(_.range(1000)); // _.range(n) returns [0, ..., n - 1]
 
 // a simple prime checker
@@ -110,4 +110,4 @@ var isPrime = function (n) {
   return true;
 }
 primes.filter(isPrime, function (res) { console.log(res); });
-~~~
+```
