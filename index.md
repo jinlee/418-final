@@ -32,7 +32,7 @@ implement `map`, `filter`, and `reduce`. Here's an example of their usage:
 {% highlight javascript %}
 var seq = new Seq([10, 30, 50, 70]);
 seq.map(function (n)   { return n * n; },
-        function (res) { print(res); });
+        function (res) { console.log(res); });
 // the second function is a callback that runs once the map has finished
 {% endhighlight %}
 
@@ -64,40 +64,57 @@ Consider the following code, annotated with the special 'triggers'.
 
 {% highlight javascript %}
 var arr = [10, 20, 50, 100];
-//! indexer:i data:arr ret:arr[i]
+//! array:arr indexer:i
 for (var i = 0; i < arr.length; i++) {
     arr[i] *= 100;
 }
+console.log(arr);
 //?
-print(arr);
 {% endhighlight %}
 
 The two triggers are `//!` and `//?`. The `//!` denotes the beginning of a for
-loop that can be executed in parallel. `//?` denotes the end of the for loop.
-The `//!` also gives extra information, such as the variable used to index, the
-data that the for loop indexer over, and the expression that is equivalent to
-the result of this computation. It's not ideal that the programmer provide this
-information, but due to the contraints of web workers, this was necessary.
+loop that can be executed in parallel. The `//!` also passes in extra
+information, such as the name of the array and the variable that's being used to
+index over the array. The second trigger, `//?` denotes the end of the what we
+call "asynchronous dependency". This is discussed further below.
 
 Using these triggers and extra information, the parser will generate the
 following code.
 
 {% highlight javascript %}
 var arr = [10, 20, 50, 100];
-var __seq = new Seq(_.range(arr.length));
-__seq.require({ name: 'arr', data: arr });
-seq.map(function (i) {
-    arr[i] *= 100;
-    return arr[i];
+var __seq = new Seq(arr);
+__seq.map(function (__n) {
+    __n *= 100;
+    return __n;
 }, function (res) {
     arr = res;
-    print(arr);
+    console.log(arr);
 });
 {% endhighlight %}
 
-As you can see, it's a quite a bit of extra code that gets generated. I think
-this is an indication that this OpenMP style parallelization is useful. It makes
-writing parallel code much easier than doing it by hand.
+The first thing to notice is that `arr[i]` has been replaced by `__n`. The
+second thing to notice is that the `console.log(arr)` has been placed into the
+callback function.
+
+Due to the asynchronous nature of javascript, this needs to be done in order to
+ensure correctness. In the original sequential code, the programmer expects
+`console.log(arr)` to execute **after** the for loop. But the problem is that
+`map` functionality is asynchronous - it returns **before** the workers have
+finished their computation.
+
+Thus the programmer needs to tell us of "asynchronous dependencies" in their
+code. Basically they need to tell us what part of their code needs to be
+executed **after** the `map` has finished executing. That's the reason that we
+require the `//?` trigger.
+
+So it's clear that there's quite a bit of extra code and logic that gets
+generated. I think this is an indication that this OpenMP style parallelization
+is useful. It makes writing parallel code much easier than doing it by hand.
+
+## Limitations ##
+
+TODO!
 
 ## Results ##
 
