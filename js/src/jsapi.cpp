@@ -4766,10 +4766,159 @@ JS_ExecuteScriptVersion(JSContext *cx, JSObject *objArg, JSScript *script, jsval
 
 static const unsigned LARGE_SCRIPT_LENGTH = 500*1024;
 
+static bool InjectChar(JSContext *cx,
+                       jschar** chars,
+                       const jschar c,
+                       size_t& limit,
+                       size_t& len) {
+    if (len == limit) {
+        // try and realloc
+        jschar *temp = cx->pod_malloc<jschar>(limit * 2);
+        if (!temp) {
+            js_free(*chars);
+            return false;
+        }
+        for (size_t i = 0; i < limit; i++) {
+            temp[i] = (*chars)[i];
+        }
+        js_free(*chars);
+        *chars = temp;
+        limit *= 2;
+    }
+    JS_ASSERT(len < limit);
+    (*chars)[len++] = c;
+    return true;
+}
+
+static jschar *InjectCode(JSContext *cx, const jschar *oldchars, size_t oldlen, size_t& newlen) {
+    size_t limit = oldlen * 2;
+    size_t arrlimit = 5;
+    jschar *newchars = cx->pod_malloc<jschar>(limit);
+    jschar *arrname = cx->pod_malloc<jschar>(arrlimit);
+    newlen = 0;
+    size_t arrlen = 0;
+    if (!newchars || !arrname) {
+        return nullptr;
+    }
+
+    bool changingArr = false;
+
+    for (size_t i = 0; i < oldlen; i++) {
+        if (changingArr && i + arrlen <= oldlen) {
+            bool same = true;
+            for (size_t j = 0; j < arrlen; j++) {
+                if (arrname[j] != oldchars[i + j]) { same = false; break; }
+            }
+            if (same) {
+                // eat until ]
+                for (; i < oldlen; i++) {
+                    if (oldchars[i] == ']') {
+                        break;
+                    }
+                }
+                if (!InjectChar(cx, &newchars, 'n', limit, newlen)) {
+                    return nullptr;
+                }
+                continue;
+            }
+        }
+        if (oldchars[i] != '/' || i + 2 >= oldlen) {
+            if (!InjectChar(cx, &newchars, oldchars[i], limit, newlen)) {
+                return nullptr;
+            }
+            continue;
+        }
+        if (oldchars[i+1] == '/' && oldchars[i+2] == '!') {
+            changingArr = true;
+            bool copying = false;
+            for (; i < oldlen; i++) {
+                if (oldchars[i] == '{') { break; }
+                if (oldchars[i] == ':') { copying = true; continue; }
+                if (oldchars[i] == ' ' || oldchars[i] == '\n') { copying = false; continue; }
+                if (copying) {
+                    if (!InjectChar(cx, &arrname, oldchars[i], arrlimit, arrlen)) {
+                        js_free(newchars);
+                        return nullptr;
+                    }
+                }
+            }
+            i -= 1;
+            const char* inject = "var __seq = new Seq(X); __seq.map(function (n) ";
+            for (size_t j = 0; j < strlen(inject); j++) {
+                if (inject[j] == 'X') {
+                    for (size_t N = 0; N < arrlen; N++) {
+                        if (!InjectChar(cx, &newchars, arrname[N], limit, newlen)) {
+                            return nullptr;
+                        }
+                    }
+                    continue;
+                }
+                if (!InjectChar(cx, &newchars, inject[j], limit, newlen)) {
+                    return nullptr;
+                }
+            }
+        } else if (oldchars[i+1] == '/' && oldchars[i+2] == '?') {
+            for (; i < oldlen; i++) {
+                if (oldchars[i] == '}') {
+                    break;
+                }
+            }
+            changingArr = false;
+            const char* inject = "return n;}, function (res) { X = res;";
+            for (size_t j = 0; j < strlen(inject); j++) {
+                if (inject[j] == 'X') {
+                    for (size_t N = 0; N < arrlen; N++) {
+                        if (!InjectChar(cx, &newchars, arrname[N], limit, newlen)) {
+                            return nullptr;
+                        }
+                    }
+                    continue;
+                }
+                if (!InjectChar(cx, &newchars, inject[j], limit, newlen)) {
+                    return nullptr;
+                }
+            }
+        } else if (oldchars[i+1] == '/' && oldchars[i+2] == '^') {
+            if (!InjectChar(cx, &newchars, '}', limit, newlen) ||
+                !InjectChar(cx, &newchars, ')', limit, newlen) ||
+                !InjectChar(cx, &newchars, ';', limit, newlen)) {
+                return nullptr;
+            }
+            i+= 2;
+        } else {
+            if (!InjectChar(cx, &newchars, oldchars[i], limit, newlen)) {
+                return nullptr;
+            }
+        }
+    }
+    if (!InjectChar(cx, &newchars, 0, limit, newlen)) {
+        return nullptr;
+    }
+    newlen--; // null terminator doesn't count
+
+    js_free(arrname);
+    return newchars;
+}
+
 extern JS_PUBLIC_API(bool)
 JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg,
              const jschar *chars, size_t length, jsval *rval)
 {
+    bool changed = false;
+    jschar *temp = nullptr;
+    for (size_t i = 0; i + 2 < length; i++) {
+        if (chars[i] == '/' && chars[i+1] == '/' && chars[i+2] == '!') {
+            size_t newlen = 0;
+            changed = true;
+            temp = InjectCode(cx, chars, length, newlen);
+            if (!temp) {
+                return false;
+            }
+            chars = temp;
+            length = newlen;
+            break;
+        }
+    }
     CompileOptions options(cx, optionsArg);
     JS_ASSERT(!cx->runtime()->isAtomsCompartment(cx->compartment()));
     AssertHeapIsIdle(cx);
@@ -4805,6 +4954,10 @@ JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &opti
         GC(cx->runtime(), GC_NORMAL, gcreason::FINISH_LARGE_EVALUTE);
     }
 
+    if (changed) {
+        JS_ASSERT(temp);
+        js_free(temp);
+    }
     return result;
 }
 
