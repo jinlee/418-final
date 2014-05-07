@@ -22,23 +22,32 @@ To do this we employ web workers and Spidermonkey (Mozilla's javascript engine).
 
 #### Threads ####
 
-The simplest form of parallel programming are threads. Web workers were recently
-supported with the release of
-[HTML 5](https://developer.mozilla.org/en-US/docs/Web/Guide/Performance/Using_web_workers).
-But their usage isn't as straightforward as using pthread. We wanted to provide
-a simple developer facing api that abstracts away their usage. Thus we chose to
-implement `map`, `filter`, and `reduce`. Here's an example of their usage:
+The simplest form of parallel programming are threads. Javascript wasn't able to
+spawn separate threads until recently when web workers were introduced with the
+release of [HTML 5](https://developer.mozilla.org/en-US/docs/Web/Guide/Performance/Using_web_workers).
+
+But the problem was that their usage wasn't as straightforward as spawning a
+thread by calling a function such as `spawn_thread`. In fact, using web workers
+is rather convoluted. Thus we wanted to provide a simple developer facing api
+that abstracts away their usage. Thus we chose to implement `map`, `filter` and
+`sort` that uses web workers internally to parallelize the execution. Here's an
+example of their usage:
 
 {% highlight javascript %}
-var seq = new Seq([10, 30, 50, 70]);
+var seq = new Seq([1, 2, 3, 4]);
 seq.map(function (n)   { return n * n; },
         function (res) { console.log(res); });
 // the second function is a callback that runs once the map has finished
+// this will log [1, 4, 9, 16]
 {% endhighlight %}
 
 More examples can be found in the [Documentation](guide.html) section
 
 #### OpenMP ####
+
+We thought that the threading api was useful, but wanted it even easier for
+developers to take existing code and add in parallelism. This is why we turned
+to OpenMP style declarations.
 
 In OpenMP, you can declare certain parts of the code to be safe for
 parallelization. For example:
@@ -72,8 +81,8 @@ console.log(arr);
 //?
 {% endhighlight %}
 
-The two triggers are `//!` and `//?`. The `//!` denotes the beginning of a for
-loop that can be executed in parallel. The `//!` also passes in extra
+The two triggers are `//!` and `//?`. The `//!` denotes the beginning of a
+forloop that can be executed in parallel. The `//!` also passes in extra
 information, such as the name of the array and the variable that's being used to
 index over the array. The second trigger, `//?` denotes the end of the what we
 call "asynchronous dependency". This is discussed further below.
@@ -118,4 +127,10 @@ TODO!
 
 ## Results ##
 
-TODO!
+#### Mandelbrot ####
+
+Here's a mandelbrot set image rendered using our thread library.
+
+![](mandel.png)
+
+table of graph of execution time will be inserted here later.
