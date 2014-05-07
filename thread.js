@@ -36,51 +36,6 @@
         this.partition();
     }
 
-	Seq.prototype.getArr = function(){
-
-        var seq = this;
-
-        var arr = seq.arr;
-
-		var sublen = seq.arr.length/seq.max;
-		var offset = sublen;
-
-        var intArrs = [];
-
-        // change the partitioned arrays from buffers to arrays
-        for(var i = 0; i < seq.max; i++){
-
-            var intBuf = seq.partArr[i];
-
-            var intArr = new Int32Array(intBuf)
-            //console.log("worker " + i + " result array size " + intArr.length);
-
-            // create array from buffer
-            intArrs.push(intArr)
-        }
-
-        //console.log("seq len: " + seq.arr.length);
-
-		for(var i = 0; i < seq.arr.length; i++){
-
-			var index = i%sublen;
-			var subArr = Math.floor(i/sublen);
-			
-			// hit the last array
-			if(subArr == seq.max){
-				
-				subArr = seq.max - 1;
-				index = sublen + index;
-			}
-
-            //console.log("part arr res " + subArr + " " + i + " " + intArr[subArr]);
-
-			arr[i] = intArrs[subArr][index];
-		}
-
-		return arr;
-	}
-
     /** internal helper functions */
     
 	// Creates code for worker function
@@ -108,20 +63,21 @@
             s += this.latch.required[i].name + ' = msg.data._required['+i+'].data;\n';
         }
 
-        s += 'var intArr = new Int32Array(msg.data.threadData);'
+        s += 'var intArr = new Int32Array(msg.data.threadData);\n'
 
 		// worker executes on array elements in a for loop
-		s += 'for(var i = 0; i < intArr.length; i++){';
+		s += 'for(var i = 0; i < intArr.length; i++){\n';
 					
 		// execute function on single list item
 		s += 'intArr[i] = ';
-		s += '(' + f.toString() + ')(intArr[i]);';
+		s += '(' + f.toString() + ')(intArr[i]);\n';
 		
-		s += '}';
+		s += '}\n';
 
 		// when done, post back to master, transferring back array
-		s += 'postMessage( intArr.buffer, [intArr.buffer]);';
+		s += 'postMessage( intArr.buffer, [intArr.buffer]);\n';
 
+        // end of for loop
         s += '}';
 
         return s;
@@ -169,6 +125,9 @@
 		// copy partitioned array in
 
         fString = this.stringify(f);
+
+        console.log("function: \n" + fString);
+
         try {
             var blob = new Blob([fString], { type: 'text/javascript' });
             worker = new Worker(window.URL.createObjectURL(blob));
@@ -176,6 +135,49 @@
             throw err;
         }
         return worker;
+    }
+
+    Seq.prototype.getArr = function(){
+
+        var seq = this;
+
+        var sublen = seq.arr.length/seq.max;
+        var offset = sublen;
+
+        var intArrs = [];
+
+        // change the partitioned arrays from buffers to arrays
+        for(var i = 0; i < seq.max; i++){
+
+            var intBuf = seq.partArr[i];
+
+            var intArr = new Int32Array(intBuf)
+            //console.log("worker " + i + " result array size " + intArr.length);
+
+            // create array from buffer
+            intArrs.push(intArr)
+        }
+
+        //console.log("seq len: " + seq.arr.length);
+
+        for(var i = 0; i < seq.arr.length; i++){
+
+            var index = i%sublen;
+            var subArr = Math.floor(i/sublen);
+            
+            // hit the last array
+            if(subArr == seq.max){
+                
+                subArr = seq.max - 1;
+                index = sublen + index;
+            }
+
+            //console.log("part arr res " + subArr + " " + i + " " + intArr[subArr]);
+
+            seq.arr[i] = intArrs[subArr][index];
+        }
+
+        return seq.arr;
     }
 
     Seq.prototype.runWorker = function (f, index, handleRes, checkDone, worker) {
@@ -198,6 +200,7 @@
 			_required: seq.latch.required,
             threadData: transferArr
 		};
+
         worker.postMessage(data, [data.threadData]);
     }
 
@@ -221,12 +224,10 @@
 			if (res !== undefined) {
                 //console.log("worker " + index + " result " + res.toString());
                 seq.partArr[index] = res;
-
             }
 
 			// terminate this worker once it has finished with its partition
 			worker.terminate();
-
         }
         var checkDone = function() {
 
@@ -237,6 +238,8 @@
                 seq.getArr();
 
                 if (cb !== undefined) {
+                    //console.log(seq.arr.toString());
+
                     cb(seq.arr);
                 }
                 newLatch.runNext();
@@ -265,6 +268,7 @@
         return this;
     }
 
+    // not yet adapted
     Seq.prototype.filter = function (f, cb) {
         var seq = this;
         var numResponse = 0;
