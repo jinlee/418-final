@@ -8,6 +8,10 @@
 !js/
 !thread.js
 !thread_test.html
+!mandelbrot.js
+!render.js
+!demo.html
+!thread_foo.html
 
 # ignore stuff inside js/
 js/src/build_DBG.OBJ/

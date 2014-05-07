@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Javascript Parallelization Demo</title>
+    <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+
+<body>
+    <canvas id="canvas" width="1000px" height="570px"></canvas>
+
+    <script type="text/javascript" src="thread.js"></script>
+    <script type="text/javascript" src="render.js"></script>
+    <script type="text/javascript" src="mandelbrot.js"></script>
+
+<script type="text/javascript">
+
+var canvas = document.getElementById("canvas");
+
+var mandel = new Mandelbrot(canvas);
+mandel.runSequential();
+mandel.runParallel();
+
+</script>
+
+</body>
+</html>
