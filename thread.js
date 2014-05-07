@@ -30,11 +30,64 @@
         this.required = [];
         this.latch = new Latch();
         this.latch.ready = true;
-        this.max = max === undefined ? 32 : max;
+        this.max = max === undefined ? 2 : max;
+		this.partArr = [];
+
+        this.partition();
     }
 
+	Seq.prototype.getArr = function(){
+
+        var seq = this;
+
+        var arr = seq.arr;
+
+		var sublen = seq.arr.length/seq.max;
+		var offset = sublen;
+
+        var intArrs = [];
+
+        // change the partitioned arrays from buffers to arrays
+        for(var i = 0; i < seq.max; i++){
+
+            var intBuf = seq.partArr[i];
+
+            var intArr = new Int32Array(intBuf)
+            //console.log("worker " + i + " result array size " + intArr.length);
+
+            // create array from buffer
+            intArrs.push(intArr)
+        }
+
+        //console.log("seq len: " + seq.arr.length);
+
+		for(var i = 0; i < seq.arr.length; i++){
+
+			var index = i%sublen;
+			var subArr = Math.floor(i/sublen);
+			
+			// hit the last array
+			if(subArr == seq.max){
+				
+				subArr = seq.max - 1;
+				index = sublen + index;
+			}
+
+            //console.log("part arr res " + subArr + " " + i + " " + intArr[subArr]);
+
+			arr[i] = intArrs[subArr][index];
+		}
+
+		return arr;
+	}
+
     /** internal helper functions */
-    Seq.prototype.stringify = function (f) {
+    
+	// Creates code for worker function
+	Seq.prototype.stringify = function (f) {
+
+		// declare variables
+		// var name;
         var s = '';
         for (var i = 0; i < this.required.length; i++) {
             s += 'var ' + this.required[i].name + ';\n';
@@ -43,21 +96,78 @@
             s += 'var ' + this.latch.required[i].name + ';\n';
         }
 
+		// create on message function
         s += 'onmessage = function (msg) {\n';
 
+		// initialize vars
+		// var name = data;
         for (var i = 0; i < this.required.length; i++) {
             s += this.required[i].name + ' = msg.data.required['+i+'].data;\n';
         }
         for (var i = 0; i < this.latch.required.length; i++) {
             s += this.latch.required[i].name + ' = msg.data._required['+i+'].data;\n';
         }
-        s += 'postMessage( (' + f.toString() + ')(msg.data.data) ); }';
+
+        s += 'var intArr = new Int32Array(msg.data.threadData);'
+
+		// worker executes on array elements in a for loop
+		s += 'for(var i = 0; i < intArr.length; i++){';
+					
+		// execute function on single list item
+		s += 'intArr[i] = ';
+		s += '(' + f.toString() + ')(intArr[i]);';
+		
+		s += '}';
+
+		// when done, post back to master, transferring back array
+		s += 'postMessage( intArr.buffer, [intArr.buffer]);';
+
+        s += '}';
+
         return s;
     }
+
+	/**
+	 * Partitions the user input array into subArrays for worker threads
+	 * to operate on independently
+	 */
+	Seq.prototype.partition = function (){
+        var seq = this
+
+		var subLen = seq.arr.length/this.max;
+		var offset = subLen;;
+		var newArr = []
+
+		for(var i = 0; i < seq.arr.length; i++){
+
+			// reached the partition boundary
+			if(i == offset){
+
+				// create new partition if remaining array
+				// elements can fill it
+				if(offset < seq.arr.length){
+                    var intArr = new Int32Array(newArr);
+				    seq.partArr.push(intArr.buffer);
+				    newArr = [];
+				}
+
+                offset += subLen;
+			}
+
+			newArr.push(seq.arr[i]);
+		}
+
+        var intArr = new Int32Array(newArr);
+		// push on the last
+		seq.partArr.push(intArr.buffer);
+	}
 
     Seq.prototype.createWorker = function(f) {
         var worker;
         var fString;
+
+		// copy partitioned array in
+
         fString = this.stringify(f);
         try {
             var blob = new Blob([fString], { type: 'text/javascript' });
@@ -77,10 +187,18 @@
             handleRes(worker, res.data, index);
             checkDone();
         };
+
+        var transferArr = seq.partArr[index]
+
         // run the worker! GO GO GO!
-        worker.postMessage({ data: seq.arr[index],
-                             required: seq.required,
-                             _required: seq.latch.required });
+		var data =
+		{
+
+			required: seq.required,
+			_required: seq.latch.required,
+            threadData: transferArr
+		};
+        worker.postMessage(data, [data.threadData]);
     }
 
     /** external functions */
@@ -95,20 +213,29 @@
     Seq.prototype.map = function (f, cb) {
         var seq = this;
         var numResponse = 0;
-        var numStarted = 0;
         var newLatch = new Latch();
         var handleRes = function(worker, res, index) {
-            if (res !== undefined) {
-                seq.arr[index] = res;
+
+			// copy array back to master
+			
+			if (res !== undefined) {
+                //console.log("worker " + index + " result " + res.toString());
+                seq.partArr[index] = res;
+
             }
-            if (numStarted < seq.arr.length) {
-                seq.runWorker(f, numStarted++, handleRes, checkDone, worker);
-            } else {
-                worker.terminate();
-            }
+
+			// terminate this worker once it has finished with its partition
+			worker.terminate();
+
         }
         var checkDone = function() {
-            if (++numResponse === seq.arr.length) {
+
+			// proceed with callbacks when partitions have finished
+            if (++numResponse === seq.max) {
+
+                // copy results into array once all workers have returned
+                seq.getArr();
+
                 if (cb !== undefined) {
                     cb(seq.arr);
                 }
@@ -117,6 +244,8 @@
         }
 
         this.latch.register(function() {
+
+			// if there's nothing in sequence, just run callbacks
             if (seq.arr.length === 0) {
                 if (cb !== undefined) {
                     cb(seq.arr);
@@ -124,11 +253,13 @@
                 newLatch.runNext();
                 return;
             }
+
+			// spawn workers
             var max = seq.arr.length < seq.max ? seq.arr.length : seq.max;
             for (var i = 0; i < max; i++) {
                 seq.runWorker(f, i, handleRes, checkDone);
             }
-            numStarted = max;
+
         });
         this.latch = newLatch;
         return this;
