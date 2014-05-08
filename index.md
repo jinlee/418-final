@@ -129,8 +129,58 @@ TODO!
 
 #### Mandelbrot ####
 
-Here's a mandelbrot set image rendered using our thread library.
+This is a preliminary result using our thread library to create a mandelbrot set
+image. Here's the image that's being rendered:
 
 ![](mandel.png)
 
-table of graph of execution time will be inserted here later.
+To test our library, we first compute this image using a single core. The basic
+algorithm for computing a single pixel value is this:
+
+{% highlight javascript %}
+// a pixel is represented as (x, y)
+var x0 = ((x / width) * 3.5) - 2.5;
+var y0 = ((y / height) * 2.0) - 1.0;
+
+var re = x0;
+var im = y0;
+var i = 0;
+
+for (; i < maxIterations; i++) {
+    if ((re * re) + (im * im) > 4.0) {
+        break;
+    }
+    var new_re = (re * re) - (im * im);
+    var new_im = 2.0 * re * im;
+    re = x0 + new_re;
+    im = y0 + new_im;
+}
+var result = i / maxIterations * 255.0;
+var result = result | 0; // cast result into an int
+{% endhighlight %}
+
+We use our threading api to compute the pixel values using two threads. One
+thread handles the top half of the image, and the other thread handles the
+bottom half.
+
+This provides us with very good information on the efficiency of our threading
+library for two reasons. First, the machines we're testing this on (our laptops)
+only have two cores. Second, the two threads receive exactly the same amount of
+work to compute. Thus we don't have to factor into account workload imbalance
+when we analyze the result.
+
+Here's the performance of running this mandelbrot demo on Chrome.
+
+| Image Size | Sequential | Parallel | Speedup |
+|:-|:-|:-|:-|
+| 10px x 5px | 26 ms | 47 ms | 0.553 x |
+| 100px x 57px | 2569 ms | 1593 ms | 1.612 x |
+| 500px x 285px | 65727 ms  | 38366 ms | 1.713 x |
+
+And here's the performance when running it on Firefox.
+
+| Image Size | Sequential | Parallel | Speedup |
+|:-|:-|:-|:-|
+| 10px x 5px | 22 ms | 87 ms | 0.252 x |
+| 100px x 57px | 2592 ms | 1684 ms | 1.539 x |
+| 500px x 285px | 64575 ms  | 41551 ms | 1.554 x |
