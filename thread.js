@@ -289,6 +289,9 @@
                 outputArrs.push(merge(left, right, compF));
             }
 
+            // push the extra arr
+            if(inputArrs.length == 1) outputArrs.push(inputArrs.pop());
+
             // output becomes input
             inputArrs = outputArrs;
         }
