@@ -8,7 +8,7 @@
         this.render = new Render(canvas);
         this.width = canvas.width;
         this.height = canvas.height;
-        this.max = 50000;
+        this.max = 500000;
     }
 
     Mandelbrot.prototype.runSequential = function() {
