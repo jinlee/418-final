@@ -300,6 +300,8 @@
             res.push(inputArrs[0][i])
         }
 
+        seq.arr = res;
+
         return res;
     }
 
