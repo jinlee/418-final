@@ -55,14 +55,6 @@ seq.require({ name: 'foo', data: actualData });
 seq.map(function(index) { return foo[index]; },
         function(res)   { console.log(res); });
 
-// sort things
-seq.mapsort(add, comp, done);
-
-// sort bigger things
-var someData = [1, 5, 6, 7, 10, 34, 29, 37, 82, -1, -83]
-var sortseq = new Seq(someData);
-sortseq.mapsort(add, comp, function(res){console.log("this is sorted: " + res)});
-
 // you can also require an auxiliary data structure exactly once:
 var seq = new Seq([0, 1, 2, 3]);
 var moreData = [100, 200, 300, 400];
