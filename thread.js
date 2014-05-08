@@ -90,9 +90,14 @@
 	Seq.prototype.partition = function (){
         var seq = this
 
-		var subLen = seq.arr.length/this.max;
+		var subLen = Math.floor(seq.arr.length/this.max);
 		var offset = subLen;;
 		var newArr = []
+
+
+        console.log("seq arr " + seq.arr);
+        console.log("subLen " + subLen);
+        console.log("offset " + offset);
 
 		for(var i = 0; i < seq.arr.length; i++){
 
@@ -101,8 +106,9 @@
 
 				// create new partition if remaining array
 				// elements can fill it
-				if(offset < seq.arr.length){
+				if(offset < seq.arr.length-1){
                     var intArr = new Int32Array(newArr);
+                    console.log("pushing on " + newArr);
 				    seq.partArr.push(intArr.buffer);
 				    newArr = [];
 				}
@@ -113,6 +119,7 @@
 			newArr.push(seq.arr[i]);
 		}
 
+        console.log("pushing on " + newArr);
         var intArr = new Int32Array(newArr);
 		// push on the last
 		seq.partArr.push(intArr.buffer);
@@ -126,7 +133,7 @@
 
         fString = this.stringify(f);
 
-        console.log("function: \n" + fString);
+        //console.log("function: \n" + fString);
 
         try {
             var blob = new Blob([fString], { type: 'text/javascript' });
@@ -141,7 +148,7 @@
 
         var seq = this;
 
-        var sublen = seq.arr.length/seq.max;
+        var sublen = Math.floor(seq.arr.length/seq.max);
         var offset = sublen;
 
         var intArrs = [];
@@ -152,13 +159,10 @@
             var intBuf = seq.partArr[i];
 
             var intArr = new Int32Array(intBuf)
-            //console.log("worker " + i + " result array size " + intArr.length);
 
             // create array from buffer
             intArrs.push(intArr)
         }
-
-        //console.log("seq len: " + seq.arr.length);
 
         for(var i = 0; i < seq.arr.length; i++){
 
@@ -171,8 +175,6 @@
                 subArr = seq.max - 1;
                 index = sublen + index;
             }
-
-            //console.log("part arr res " + subArr + " " + i + " " + intArr[subArr]);
 
             seq.arr[i] = intArrs[subArr][index];
         }
