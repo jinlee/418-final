@@ -10,9 +10,13 @@ var mult = function(n) {
     return n * n;
 };
 
+var comp = function(a, b){
+    return a - b;
+};
+
 var done = function(res) {
     console.log(res);
-}
+};
 
 var seq = new Seq([0, 1, 2, 3]);
 
@@ -34,7 +38,7 @@ seq.map(add).map(add, done);
  *  function will use. Example below.
  */
 
-var actualData = [10, 20, 30, 40];
+var actualData = [40, 10, 30, 20];
 var reverseIndices = [3, 2, 1, 0];
 
 var seq = new Seq(reverseIndices);
@@ -50,6 +54,14 @@ seq.require({ name: 'foo', data: actualData });
 // but now the mapping function has to use 'foo' insteadof 'actualData'
 seq.map(function(index) { return foo[index]; },
         function(res)   { console.log(res); });
+
+// sort things
+seq.mapsort(add, comp, done);
+
+// sort bigger things
+var someData = [1, 5, 6, 7, 10, 34, 29, 37, 82, -1, -83]
+var sortseq = new Seq(someData);
+sortseq.mapsort(add, comp, function(res){console.log("this is sorted: " + res)});
 
 // you can also require an auxiliary data structure exactly once:
 var seq = new Seq([0, 1, 2, 3]);
@@ -78,6 +90,7 @@ var isPrime = function (n) {
     }
     return true;
 }
+
 
 var stress = new Seq(_.range(1000));
 stress.filter(isPrime, done);

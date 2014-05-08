@@ -41,8 +41,26 @@
 	// Creates code for worker function
 	Seq.prototype.stringify = function (f) {
 
-		// declare variables
-		// var name;
+        var s = this.stringifyInit()
+
+        // create on message function
+        s += 'onmessage = function (msg) {\n';
+
+        s += this.stringifyLoop(f);
+
+		// when done, post back to master, transferring back array
+		s += 'postMessage( intArr.buffer, [intArr.buffer]);\n';
+
+        // end of for loop
+        s += '}';
+
+        return s;
+    }
+
+    Seq.prototype.stringifyInit = function() {
+
+        // declare variables
+        // var name;
         var s = '';
         for (var i = 0; i < this.required.length; i++) {
             s += 'var ' + this.required[i].name + ';\n';
@@ -51,11 +69,15 @@
             s += 'var ' + this.latch.required[i].name + ';\n';
         }
 
-		// create on message function
-        s += 'onmessage = function (msg) {\n';
+        return s;
+    }
 
-		// initialize vars
-		// var name = data;
+    Seq.prototype.stringifyLoop = function (f){
+
+        // initialize vars
+        // var name = data;
+        var s = '';
+
         for (var i = 0; i < this.required.length; i++) {
             s += this.required[i].name + ' = msg.data.required['+i+'].data;\n';
         }
@@ -65,17 +87,37 @@
 
         s += 'var intArr = new Int32Array(msg.data.threadData);\n'
 
-		// worker executes on array elements in a for loop
-		s += 'for(var i = 0; i < intArr.length; i++){\n';
-					
-		// execute function on single list item
-		s += 'intArr[i] = ';
-		s += '(' + f.toString() + ')(intArr[i]);\n';
-		
-		s += '}\n';
+        // worker executes on array elements in a for loop
+        s += 'for(var i = 0; i < intArr.length; i++){\n';
+                    
+        // execute function on single list item
+        s += 'intArr[i] = ';
+        s += '(' + f.toString() + ')(intArr[i]);\n';
+        
+        s += '}\n';
 
-		// when done, post back to master, transferring back array
-		s += 'postMessage( intArr.buffer, [intArr.buffer]);\n';
+        return s;
+
+    }
+
+    Seq.prototype.stringifySort = function(f, compF){
+
+        var s = this.stringifyInit();
+
+        // create on message function
+        s += 'onmessage = function (msg) {\n';
+
+        s += this.stringifyLoop(f);
+
+        s += "console.log(\"sorter doing sort stuff\");"
+
+        // use array sort
+        s += '[].sort.call(intArr,' + compF.toString() + ');\n'
+
+        s += "console.log(\"sorter finished sorting stuff\");"
+
+        // when done, post back to master, transferring back array
+        s += 'postMessage( intArr.buffer, [intArr.buffer]);\n';
 
         // end of for loop
         s += '}';
@@ -94,11 +136,6 @@
 		var offset = subLen;;
 		var newArr = []
 
-
-        console.log("seq arr " + seq.arr);
-        console.log("subLen " + subLen);
-        console.log("offset " + offset);
-
 		for(var i = 0; i < seq.arr.length; i++){
 
 			// reached the partition boundary
@@ -108,7 +145,6 @@
 				// elements can fill it
 				if(offset < seq.arr.length-1){
                     var intArr = new Int32Array(newArr);
-                    console.log("pushing on " + newArr);
 				    seq.partArr.push(intArr.buffer);
 				    newArr = [];
 				}
@@ -119,7 +155,6 @@
 			newArr.push(seq.arr[i]);
 		}
 
-        console.log("pushing on " + newArr);
         var intArr = new Int32Array(newArr);
 		// push on the last
 		seq.partArr.push(intArr.buffer);
@@ -129,11 +164,7 @@
         var worker;
         var fString;
 
-		// copy partitioned array in
-
         fString = this.stringify(f);
-
-        //console.log("function: \n" + fString);
 
         try {
             var blob = new Blob([fString], { type: 'text/javascript' });
@@ -142,6 +173,45 @@
             throw err;
         }
         return worker;
+    }
+
+    Seq.prototype.createSorter = function(f, compF){
+
+        fString = this.stringifySort(f, compF);
+
+        console.log("sort function: \n" + fString);
+
+        try {
+            var blob = new Blob([fString], { type: 'text/javascript' });
+            worker = new Worker(window.URL.createObjectURL(blob));
+        } catch (err) {
+            throw err;
+        }
+        return worker;
+    }
+
+    Seq.prototype.runWorker = function (f, index, handleRes, checkDone, worker) {
+        var seq = this;
+        if (worker === undefined) {
+            worker = this.createWorker(f);
+        }
+        worker.onmessage = function (res) {
+            handleRes(worker, res.data, index);
+            checkDone();
+        };
+
+        var transferArr = seq.partArr[index]
+
+        // run the worker! GO GO GO!
+        var data =
+        {
+
+            required: seq.required,
+            _required: seq.latch.required,
+            threadData: transferArr
+        };
+
+        worker.postMessage(data, [data.threadData]);
     }
 
     Seq.prototype.getArr = function(){
@@ -182,28 +252,99 @@
         return seq.arr;
     }
 
-    Seq.prototype.runWorker = function (f, index, handleRes, checkDone, worker) {
+    Seq.prototype.sortRes = function(compF){
+
         var seq = this;
-        if (worker === undefined) {
-            worker = this.createWorker(f);
+
+        var sublen = Math.floor(seq.arr.length/seq.max);
+        var offset = sublen;
+
+        var inputArrs = [];
+        var outputArrs = [];
+
+        var left;
+        var right;
+
+        // change the partitioned arrays from buffers to arrays
+        for(var i = 0; i < seq.max; i++){
+
+            var intBuf = seq.partArr[i];
+
+            var intArr = new Int32Array(intBuf)
+
+            // create array from buffer
+            inputArrs.push(intArr)
         }
-        worker.onmessage = function (res) {
-            handleRes(worker, res.data, index);
-            checkDone();
-        };
 
-        var transferArr = seq.partArr[index]
+        // merge down to 1
+        while(inputArrs.length > 1){
 
-        // run the worker! GO GO GO!
-		var data =
-		{
+            // pull out the arrays and merge them
+            while(inputArrs.length > 1){
 
-			required: seq.required,
-			_required: seq.latch.required,
-            threadData: transferArr
-		};
+                left = inputArrs.pop();
+                right = inputArrs.pop();
 
-        worker.postMessage(data, [data.threadData]);
+                // add the merged output
+                outputArrs.push(merge(left, right, compF));
+            }
+
+            // output becomes input
+            inputArrs = outputArrs;
+        }
+
+        var res = [];
+
+        // there can only be one HIGHLANDERRRR
+        for(var i = 0; i < inputArrs[0].length; i++){
+            res.push(inputArrs[0][i])
+        }
+
+        return res;
+    }
+
+    function merge(left, right, compF){
+
+        var result = [];
+        var leftInd = 0;
+        var rightInd = 0;
+
+        var leftLen = left.length;
+        var rightLen = right.length;
+
+        var leftEl;
+        var rightEl;
+
+        // iterate through the arrays
+        while(leftInd < leftLen || rightInd < rightLen){
+
+            // if both have elements, merge
+            if(leftInd < leftLen && rightInd < rightLen){
+
+                leftEl = left[leftInd];
+                rightEl = right[rightInd];
+
+                // choose the 'smaller' element
+                if(compF(leftEl, rightEl) < 0){
+                    leftInd++;
+                    result.push(leftEl);
+                }else{
+                    rightInd++;
+                    result.push(rightEl);
+                }
+            // push on remainder of left
+            }else if(leftInd < leftLen){
+
+                result.push(left[leftInd++]);
+
+            // push on remainder of right
+            }else{
+
+                result.push(right[rightInd++]);
+            }
+        }
+
+        return new Int32Array(result);
     }
 
     /** external functions */
@@ -268,6 +409,72 @@
         });
         this.latch = newLatch;
         return this;
+    }
+
+    Seq.prototype.mapsort = function(f, compF, cb){
+        var seq = this;
+        var numResponse = 0;
+        var newLatch = new Latch();
+
+        console.log("sorting\n");
+
+        var handleRes = function(worker, res, index) {
+
+            // copy array back to master
+            
+            if (res !== undefined) {
+                //console.log("worker " + index + " result " + res.toString());
+                seq.partArr[index] = res;
+            }
+
+            // terminate this worker once it has finished with its partition
+            worker.terminate();
+        }
+        var checkDone = function() {
+
+            // proceed with callbacks when partitions have finished
+            if (++numResponse === seq.max) {
+
+                // sort the responses into a single array
+                var sorted = seq.sortRes(compF);
+
+                if (cb !== undefined) {
+                    //console.log(seq.arr.toString());
+
+                    cb(sorted);
+                }
+                newLatch.runNext();
+            }
+        }
+
+        this.latch.register(function() {
+
+            console.log("about to do stuff");
+
+            // if there's nothing in sequence, just run callbacks
+            if (seq.arr.length === 0) {
+                if (cb !== undefined) {
+                    cb(seq.arr);
+                }
+                newLatch.runNext();
+                return;
+            }
+
+            console.log("spawning workers");
+
+            // spawn workers
+            var max = seq.arr.length < seq.max ? seq.arr.length : seq.max;
+            for (var i = 0; i < max; i++) {
+                console.log("spawning");
+
+                var sorter = seq.createSorter(f, compF);
+                seq.runWorker(f, i, handleRes, checkDone, sorter);
+            }
+
+        });
+        this.latch = newLatch;
+        return this;
+
     }
 
     // not yet adapted

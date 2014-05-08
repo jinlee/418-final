@@ -1,0 +1,26 @@
+<script src="thread.js"></script>
+
+<script>
+
+var add = function (n) {
+    return n + n;
+};
+
+var mult = function(n) {
+    return n * n;
+};
+
+var comp = function(a, b){
+    return a - b;
+};
+
+var done = function(res) {
+    console.log(res);
+};
+
+// sort bigger things
+var someData = [1, 5, 6, 7, 10, 34, 29, 37, 82, -1, -83]
+var sortseq = new Seq(someData);
+sortseq.mapsort(add, comp, function(res){console.log("this is sorted: " + res.toString())});
+
+</script>
