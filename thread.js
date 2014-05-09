@@ -30,7 +30,7 @@
         this.required = [];
         this.latch = new Latch();
         this.latch.ready = true;
-        this.max = max === undefined ? 2 : max;
+        this.max = max === undefined ? 4 : max;
 		this.partArr = [];
 
         this.partition();
@@ -48,8 +48,12 @@
 
         s += this.stringifyLoop(f);
 
+        s += 'var done = new Date().getTime();\n'
+
+        s += 'var time = done - start;'
+
 		// when done, post back to master, transferring back array
-		s += 'postMessage( intArr.buffer, [intArr.buffer]);\n';
+		s += 'postMessage( {extime : time, data : intArr.buffer}, [intArr.buffer]);\n';
 
         // end of for loop
         s += '}';
@@ -86,6 +90,8 @@
         }
 
         s += 'var intArr = new Int32Array(msg.data.threadData);\n'
+
+        s += 'var start = new Date().getTime();\n'
 
         // worker executes on array elements in a for loop
         s += 'for(var i = 0; i < intArr.length; i++){\n';
@@ -371,7 +377,8 @@
 			
 			if (res !== undefined) {
                 //console.log("worker " + index + " result " + res.toString());
-                seq.partArr[index] = res;
+                seq.partArr[index] = res.data;
+                console.log("worker " + index + " time: " + res.extime);
             }
 
 			// terminate this worker once it has finished with its partition
