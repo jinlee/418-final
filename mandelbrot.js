@@ -45,8 +45,37 @@
         this.render.render();
     }
 
+    Mandelbrot.prototype.fillArray = function (w, h, num) {
+        var arr = new Array();
+        for (var i = 0; i < num; i++) {
+            // handle worker i
+            for (var j = i; j < h; j += num) {
+                for (var k = 0; k < w; k++) {
+                    arr.push(k + (j * w));
+                }
+            }
+        }
+        return arr;
+    }
+
+    // buggy, don't use :(
+    Mandelbrot.prototype.renderParallel = function (arr, num) {
+        for (var i = 0; i < arr.length; i++) {
+            var x = (i % this.width) | 0;
+            var line = (i / this.width) | 0;
+            var worker = (line % num) | 0;
+            var offset = (line / num) | 0;
+            var y = (worker * (this.height / num)) + offset;
+            console.log(i + ", " + x + ", " + y);
+            this.render.setPixel(x, y, arr[i]);
+        }
+        this.render.render();
+    }
+
     Mandelbrot.prototype.runParallel = function() {
-        var arr = _.range(this.width * this.height);
+        var numWorkers = 2;
+        var arr = this.fillArray(this.width, this.height, numWorkers);
+        //var arr = _.range(this.width * this.height);
         var single = function(xy) {
             var x = xy % width;
             var y = (xy / width) | 0;
@@ -67,7 +96,7 @@
             var res = ((i / max) * 255.0) | 0;
             return (res << 24) | (res << 16) | (res << 8) | 0xFF;
         }
-        var seq = new Seq(arr, 2);
+        var seq = new Seq(arr, numWorkers);
         seq.require({ name: 'width', data: this.width});
         seq.require({ name: 'height', data: this.height});
         seq.require({ name: 'max', data: this.max});
@@ -76,9 +105,10 @@
         seq.map(single, function (res) {
             var end = new Date().getTime();
             console.log("Parallel took : " + (end - start) + " ms");
+            var arr = bleh.fillArray(bleh.width, bleh.height, numWorkers);
             for (var i = 0; i < res.length; i++) {
-                var x = i % bleh.width;
-                var y = (i / bleh.width) | 0;
+                var x = arr[i] % bleh.width;
+                var y = (arr[i] / bleh.width) | 0;
                 bleh.render.setPixel(x, y, res[i]);
             }
             bleh.render.render();
