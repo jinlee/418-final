@@ -32,8 +32,6 @@ sortseq.mapsort(add, comp, function(res){console.log("this is sorted: " + res.to
 
 var nums = _.range(10000000);
 
-var res = [];
-
 var start = new Date().getTime();
 var numsInt = new Int32Array(nums);
 for(var i = 0; i < nums.length; i++){
@@ -54,6 +52,7 @@ console.log("seq sort time " + sorttime);
 var end = new Date().getTime();
 var time = end - start;
 console.log("sequential time " + time);
+
 
 var randseq = new Seq(nums, 2);
 randseq.mapsort(rand, comp, done);

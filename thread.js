@@ -123,13 +123,13 @@
 
         s += 'var sortStart = new Date().getTime();\n';
 
+        s += 'var done = new Date().getTime();\n';
+
         // use array sort
         s += '[].sort.call(intArr,' + compF.toString() + ');\n';
 
-        s += 'var done = new Date().getTime();\n';
-
-        s += 'var time = done - start;\n'
-        s += 'var sortTime = done - sortStart;\n'
+        s += 'var time = done - start;\n';
+        s += 'var sortTime = new Date().getTime() - done;\n';
 
         // when done, post back to master, transferring back array
         s += 'postMessage( {extime : time, sorttime : sortTime, data : intArr.buffer}, [intArr.buffer]);\n';
@@ -379,7 +379,7 @@
                 res[resInd++] = right[rightInd++];
             }
         }
-        
+
         var end = new Date().getTime();
         console.log("actual merge time " + (end - start));
 
