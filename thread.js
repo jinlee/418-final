@@ -146,8 +146,6 @@
 
 		var subLen = Math.floor(seq.arr.length/this.max);
 
-        console.log("sublen= " + subLen);
-
 		var offset = subLen;;
 		var newArr = [];
         var intArr;
@@ -159,7 +157,6 @@
 
                 // add arrays til we hit quota
 				if(seq.partArr.length+1 < seq.max){
-                    console.log("pushing on " + newArr.toString());
                     intArr = new Int32Array(newArr);
 				    seq.partArr.push(intArr.buffer);
 				    newArr = [];
@@ -171,7 +168,6 @@
 			newArr.push(seq.arr[i]);
 		}
 
-        console.log("pushing on last arr " + newArr.toString());
         intArr = new Int32Array(newArr);
 		// push on the last
 		seq.partArr.push(intArr.buffer);
@@ -195,8 +191,6 @@
     Seq.prototype.createSorter = function(f, compF){
 
         fString = this.stringifySort(f, compF);
-
-        console.log("sort function: \n" + fString);
 
         try {
             var blob = new Blob([fString], { type: 'text/javascript' });
@@ -246,8 +240,6 @@
             var intBuf = seq.partArr[i];
 
             var intArr = new Int32Array(intBuf);
-
-            console.log("arr  " + i + " len= " + intArr.length);
 
             // create array from buffer
             intArrs.push(intArr)
@@ -389,7 +381,6 @@
 			// copy array back to master
 			
 			if (res !== undefined) {
-                //console.log("worker " + index + " result " + res.toString());
                 seq.partArr[index] = res.data;
                 console.log("worker " + index + " time: " + res.extime);
             }
@@ -502,30 +493,32 @@
 
     }
 
-    // not yet adapted
     Seq.prototype.filter = function (f, cb) {
         var seq = this;
         var numResponse = 0;
-        var numStarted = 0;
         var temp = new Array(this.arr.length);
         var newLatch = new Latch();
         var handleRes = function(worker, res, index) {
+            // copy array back to master
+            
             if (res !== undefined) {
-                temp[index] = res;
-            } else {
-                temp[index] = false;
+                seq.partArr[index] = res.data;
+                console.log("worker " + index + " time: " + res.extime);
             }
-            if (numStarted < seq.arr.length) {
-                seq.runWorker(f, numStarted++, handleRes, checkDone, worker);
-            } else {
-                worker.terminate();
-            }
+
+            // terminate this worker once it has finished with its partition
+            worker.terminate();
         }
         var checkDone = function() {
-            if (++numResponse === seq.arr.length) {
+            if (++numResponse === seq.max) {
+
+                seq.getArr();
+
+                console.log("filter stuff");
+
                 var newArr = [];
-                for (var i = 0; i < temp.length; i++) {
-                    if (temp[i]) {
+                for (var i = 0; i < seq.arr.length; i++) {
+                    if (seq.arr[i]) {
                         newArr.push(seq.arr[i]);
                     }
                 }
@@ -545,11 +538,10 @@
                 newLatch.runNext();
                 return;
             }
-            var max = seq.arr.length < seq.max ? seq.arr.length : seq.max;
-            for (var i = 0; i < max; i++) {
+            
+            for (var i = 0; i < seq.max; i++) {
                 seq.runWorker(f, i, handleRes, checkDone);
             }
-            numStarted = max;
         });
         this.latch = newLatch;
         return this;

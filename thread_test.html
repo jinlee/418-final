@@ -18,6 +18,7 @@ var done = function(res) {
     console.log(res);
 };
 
+
 var seq = new Seq([0, 1, 2, 3]);
 
 // simple map example
@@ -29,7 +30,6 @@ seq.map(add, done);
 // can also chain the maps, like so
 seq.map(add).map(add, done);
 
-
 /** you can also pass in an auxiliary data to all the workers.
  *
  *  BE WARNED THOUGH! The auxiliary data is COPIED to all the web workers.
@@ -38,8 +38,8 @@ seq.map(add).map(add, done);
  *  function will use. Example below.
  */
 
-var actualData = [40, 10, 30, 20];
-var reverseIndices = [3, 2, 1, 0];
+var actualData = [40, 10, 30];
+var reverseIndices = [3,2,1,0];
 
 var seq = new Seq(reverseIndices);
 seq.require({ name: 'actualData', data: actualData });
@@ -83,8 +83,7 @@ var isPrime = function (n) {
     return true;
 }
 
-/*
 var stress = new Seq(_.range(1000));
 stress.filter(isPrime, done);
-*/
+
 </script>
