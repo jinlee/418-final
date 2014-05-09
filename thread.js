@@ -30,7 +30,13 @@
         this.required = [];
         this.latch = new Latch();
         this.latch.ready = true;
-        this.max = max === undefined ? 4 : max;
+        this.max = max === undefined ? 2 : max;
+
+        // max shouldnt be greater than the size of the array
+        if(this.max > this.arr.length){
+            this.max = this.arr.length;
+        }
+
 		this.partArr = [];
 
         this.partition();
@@ -139,18 +145,22 @@
         var seq = this
 
 		var subLen = Math.floor(seq.arr.length/this.max);
+
+        console.log("sublen= " + subLen);
+
 		var offset = subLen;;
-		var newArr = []
+		var newArr = [];
+        var intArr;
 
 		for(var i = 0; i < seq.arr.length; i++){
 
 			// reached the partition boundary
 			if(i == offset){
 
-				// create new partition if remaining array
-				// elements can fill it
-				if(offset < seq.arr.length-1){
-                    var intArr = new Int32Array(newArr);
+                // add arrays til we hit quota
+				if(seq.partArr.length+1 < seq.max){
+                    console.log("pushing on " + newArr.toString());
+                    intArr = new Int32Array(newArr);
 				    seq.partArr.push(intArr.buffer);
 				    newArr = [];
 				}
@@ -161,7 +171,8 @@
 			newArr.push(seq.arr[i]);
 		}
 
-        var intArr = new Int32Array(newArr);
+        console.log("pushing on last arr " + newArr.toString());
+        intArr = new Int32Array(newArr);
 		// push on the last
 		seq.partArr.push(intArr.buffer);
 	}
@@ -234,7 +245,9 @@
 
             var intBuf = seq.partArr[i];
 
-            var intArr = new Int32Array(intBuf)
+            var intArr = new Int32Array(intBuf);
+
+            console.log("arr  " + i + " len= " + intArr.length);
 
             // create array from buffer
             intArrs.push(intArr)
@@ -246,7 +259,7 @@
             var subArr = Math.floor(i/sublen);
             
             // hit the last array
-            if(subArr == seq.max){
+            if(subArr >= seq.max){
                 
                 subArr = seq.max - 1;
                 index = sublen + index;
