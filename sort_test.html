@@ -18,9 +18,45 @@ var done = function(res) {
     console.log(res);
 };
 
+var rand = function(n) {
+
+	Math.floor((Math.random() * 100) + 1);
+
+}
+
 // sort bigger things
 var someData = [1, 5, 6, 7, 10, 34, 29, 37, 82, -1, -83]
 var sortseq = new Seq(someData);
 sortseq.mapsort(add, comp, function(res){console.log("this is sorted: " + res.toString())});
+
+
+var nums = _.range(10000000);
+
+var res = [];
+
+var start = new Date().getTime();
+var numsInt = new Int32Array(nums);
+for(var i = 0; i < nums.length; i++){
+
+	numsInt[i] = rand(numsInt[i]);
+}
+
+var randtime = new Date().getTime() - start;
+var sortStart = new Date().getTime();
+
+console.log("seq rand time " + randtime);
+
+[].sort.call(numsInt, comp);
+
+var sorttime = new Date().getTime() - sortStart;
+console.log("seq sort time " + sorttime);
+
+var end = new Date().getTime();
+var time = end - start;
+console.log("sequential time " + time);
+
+var randseq = new Seq(nums, 2);
+randseq.mapsort(rand, comp, done);
+
 
 </script>

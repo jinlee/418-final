@@ -121,15 +121,18 @@
 
         s += this.stringifyLoop(f);
 
-        s += "console.log(\"sorter doing sort stuff\");"
+        s += 'var sortStart = new Date().getTime();\n';
 
         // use array sort
-        s += '[].sort.call(intArr,' + compF.toString() + ');\n'
+        s += '[].sort.call(intArr,' + compF.toString() + ');\n';
 
-        s += "console.log(\"sorter finished sorting stuff\");"
+        s += 'var done = new Date().getTime();\n';
+
+        s += 'var time = done - start;\n'
+        s += 'var sortTime = done - sortStart;\n'
 
         // when done, post back to master, transferring back array
-        s += 'postMessage( intArr.buffer, [intArr.buffer]);\n';
+        s += 'postMessage( {extime : time, sorttime : sortTime, data : intArr.buffer}, [intArr.buffer]);\n';
 
         // end of for loop
         s += '}';
@@ -287,6 +290,8 @@
             inputArrs.push(intArr)
         }
 
+        console.log("input len " + inputArrs.length);
+
         // merge down to 1
         while(inputArrs.length > 1){
 
@@ -321,6 +326,8 @@
 
     function merge(left, right, compF){
 
+        console.log("merge!");
+
         var result = [];
         var leftInd = 0;
         var rightInd = 0;
@@ -330,6 +337,19 @@
 
         var leftEl;
         var rightEl;
+
+        var resInd = 0;
+
+        console.log("right len " + rightLen);
+        console.log("left len " + leftLen);
+
+        var start = new Date().getTime();
+
+        var res = new Int32Array(leftLen + rightLen);
+
+        //res.set(left, 0);
+        //res.set(right, leftLen);
+        //[].sort.call(res, compF);
 
         // iterate through the arrays
         while(leftInd < leftLen || rightInd < rightLen){
@@ -343,24 +363,27 @@
                 // choose the 'smaller' element
                 if(compF(leftEl, rightEl) < 0){
                     leftInd++;
-                    result.push(leftEl);
+                    res[resInd++] = leftEl;
                 }else{
                     rightInd++;
-                    result.push(rightEl);
+                    res[resInd++] = rightEl;
                 }
             // push on remainder of left
             }else if(leftInd < leftLen){
 
-                result.push(left[leftInd++]);
+                res[resInd++] = left[leftInd++];
 
             // push on remainder of right
             }else{
 
-                result.push(right[rightInd++]);
+                res[resInd++] = right[rightInd++];
             }
         }
+        
+        var end = new Date().getTime();
+        console.log("actual merge time " + (end - start));
 
-        return new Int32Array(result);
+        return res;
     }
 
     /** external functions */
@@ -432,15 +455,16 @@
         var numResponse = 0;
         var newLatch = new Latch();
 
-        console.log("sorting\n");
-
         var handleRes = function(worker, res, index) {
 
             // copy array back to master
             
             if (res !== undefined) {
                 //console.log("worker " + index + " result " + res.toString());
-                seq.partArr[index] = res;
+                seq.partArr[index] = res.data;
+                console.log("worker " + index + " time: " + res.extime);
+                console.log("sort time " + index + " time: " + res.sorttime);
+
             }
 
             // terminate this worker once it has finished with its partition
@@ -451,8 +475,13 @@
             // proceed with callbacks when partitions have finished
             if (++numResponse === seq.max) {
 
+                var start = new Date().getTime();
+
                 // sort the responses into a single array
                 var sorted = seq.sortRes(compF);
+
+                var time = new Date().getTime() - start;
+                console.log("merge time " + time);
 
                 if (cb !== undefined) {
                     //console.log(seq.arr.toString());
@@ -465,8 +494,6 @@
 
         this.latch.register(function() {
 
-            console.log("about to do stuff");
-
             // if there's nothing in sequence, just run callbacks
             if (seq.arr.length === 0) {
                 if (cb !== undefined) {
@@ -476,12 +503,9 @@
                 return;
             }
 
-            console.log("spawning workers");
-
             // spawn workers
             var max = seq.arr.length < seq.max ? seq.arr.length : seq.max;
             for (var i = 0; i < max; i++) {
-                console.log("spawning");
 
                 var sorter = seq.createSorter(f, compF);
                 seq.runWorker(f, i, handleRes, checkDone, sorter);
