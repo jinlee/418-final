@@ -4775,7 +4775,6 @@ static bool InjectChar(JSContext *cx,
         // try and realloc
         jschar *temp = cx->pod_malloc<jschar>(limit * 2);
         if (!temp) {
-            js_free(*chars);
             return false;
         }
         for (size_t i = 0; i < limit; i++) {
@@ -4790,114 +4789,159 @@ static bool InjectChar(JSContext *cx,
     return true;
 }
 
-static jschar *InjectCode(JSContext *cx, const jschar *oldchars, size_t oldlen, size_t& newlen) {
-    size_t limit = oldlen * 2;
-    size_t arrlimit = 5;
-    jschar *newchars = cx->pod_malloc<jschar>(limit);
-    jschar *arrname = cx->pod_malloc<jschar>(arrlimit);
-    newlen = 0;
-    size_t arrlen = 0;
-    if (!newchars || !arrname) {
-        return nullptr;
+static bool InjectString(JSContext *cx,
+                         jschar **chars,
+                         const char* string,
+                         size_t& limit,
+                         size_t& len,
+                         const jschar* name,
+                         size_t namelen) {
+    size_t N = strlen(string);
+    for (size_t i = 0; i < N; i++) {
+        if (string[i] == 'X') {
+            // insert the name, ('X') is a place holder
+            for (size_t j = 0; j < namelen; j++) {
+                if (!InjectChar(cx, chars, name[j], limit, len)) {
+                    return false;
+                }
+            }
+        } else {
+            if (!InjectChar(cx, chars, string[i], limit, len)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static bool InjectStrCmp(const jschar *str1,
+                         const jschar *str2,
+                         const size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        if (str1[i] != str2[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool InjectEat(const jschar *str,
+                      size_t strlen,
+                      size_t& offset,
+                      const char c) {
+    for (; offset < strlen; offset++) {
+        if (str[offset] == c) {
+            break;
+        }
+    }
+    return offset != strlen;
+}
+
+static jschar *InjectCode(JSContext *cx,
+                          const jschar *oldCode,
+                          size_t oldCodeLen,
+                          size_t& codeLen) {
+    size_t codeLimit = oldCodeLen * 2;
+    size_t arrLimit = 5; // arbitrary
+    codeLen = 0;
+    size_t arrLen = 0;
+
+    bool inForLoop = false; // are we inside a for loop?
+    size_t mapInRow = 0;
+    size_t numCurly = 0;
+
+    jschar *code = cx->pod_malloc<jschar>(codeLimit);
+    jschar *arr = cx->pod_malloc<jschar>(arrLimit);
+    if (!code || !arr) {
+        goto injectfail;
     }
 
-    bool changingArr = false;
-
-    for (size_t i = 0; i < oldlen; i++) {
-        if (changingArr && i + arrlen <= oldlen) {
-            bool same = true;
-            for (size_t j = 0; j < arrlen; j++) {
-                if (arrname[j] != oldchars[i + j]) { same = false; break; }
-            }
-            if (same) {
-                // eat until ]
-                for (; i < oldlen; i++) {
-                    if (oldchars[i] == ']') {
-                        break;
-                    }
+    for (size_t i = 0; i < oldCodeLen; i++) {
+        // handle the curlies while inside for loop
+        if (inForLoop && oldCode[i] == '{') { numCurly++; }
+        if (inForLoop && oldCode[i] == '}') {
+            numCurly--;
+            if (numCurly == 0) {
+                const char* inject = "return __n; }, function (res) { X = res;";
+                if (!InjectString(cx, &code, inject, codeLimit, codeLen, arr, arrLen)) {
+                    goto injectfail;
                 }
-                if (!InjectChar(cx, &newchars, 'n', limit, newlen)) {
-                    return nullptr;
-                }
+                inForLoop = false;
+                arrLen = 0;
                 continue;
             }
         }
-        if (oldchars[i] != '/' || i + 2 >= oldlen) {
-            if (!InjectChar(cx, &newchars, oldchars[i], limit, newlen)) {
-                return nullptr;
+        // handle arr[i] inside a for loop
+        if (inForLoop && i + arrLen <= oldCodeLen &&
+            InjectStrCmp(oldCode + i, arr, arrLen)) {
+            if (!InjectEat(oldCode, oldCodeLen, i, ']')) { goto injectfail; }
+            if (!InjectChar(cx, &code, '_', codeLimit, codeLen) ||
+                !InjectChar(cx, &code, '_', codeLimit, codeLen) ||
+                !InjectChar(cx, &code, 'n', codeLimit, codeLen)) {
+                goto injectfail;
             }
             continue;
         }
-        if (oldchars[i+1] == '/' && oldchars[i+2] == '!') {
-            changingArr = true;
-            bool copying = false;
-            for (; i < oldlen; i++) {
-                if (oldchars[i] == '{') { break; }
-                if (oldchars[i] == ':') { copying = true; continue; }
-                if (oldchars[i] == ' ' || oldchars[i] == '\n') { copying = false; continue; }
-                if (copying) {
-                    if (!InjectChar(cx, &arrname, oldchars[i], arrlimit, arrlen)) {
-                        js_free(newchars);
-                        return nullptr;
-                    }
-                }
-            }
-            i -= 1;
-            const char* inject = "var __seq = new Seq(X); __seq.map(function (n) ";
-            for (size_t j = 0; j < strlen(inject); j++) {
-                if (inject[j] == 'X') {
-                    for (size_t N = 0; N < arrlen; N++) {
-                        if (!InjectChar(cx, &newchars, arrname[N], limit, newlen)) {
-                            return nullptr;
-                        }
-                    }
-                    continue;
-                }
-                if (!InjectChar(cx, &newchars, inject[j], limit, newlen)) {
-                    return nullptr;
-                }
-            }
-        } else if (oldchars[i+1] == '/' && oldchars[i+2] == '?') {
-            for (; i < oldlen; i++) {
-                if (oldchars[i] == '}') {
+        // handle beginning (//!)
+        if (i + 3 <= oldCodeLen &&
+            oldCode[i] == '/' && oldCode[i+1] == '/' && oldCode[i+2] == '!') {
+            inForLoop = true;
+            mapInRow++;
+            JS_ASSERT(numCurly == 0);
+            numCurly = 1;
+            if (!InjectEat(oldCode, oldCodeLen, i, ':')) { goto injectfail; }
+            i++; // skip over the ':'
+            for (; i < oldCodeLen; i++) {
+                if (oldCode[i] == ' ' || oldCode[i] == '\t' || oldCode[i] == '\n') {
                     break;
                 }
-            }
-            changingArr = false;
-            const char* inject = "return n;}, function (res) { X = res;";
-            for (size_t j = 0; j < strlen(inject); j++) {
-                if (inject[j] == 'X') {
-                    for (size_t N = 0; N < arrlen; N++) {
-                        if (!InjectChar(cx, &newchars, arrname[N], limit, newlen)) {
-                            return nullptr;
-                        }
-                    }
-                    continue;
-                }
-                if (!InjectChar(cx, &newchars, inject[j], limit, newlen)) {
-                    return nullptr;
+                if (!InjectChar(cx, &arr, oldCode[i], arrLimit, arrLen)) {
+                    goto injectfail;
                 }
             }
-        } else if (oldchars[i+1] == '/' && oldchars[i+2] == '^') {
-            if (!InjectChar(cx, &newchars, '}', limit, newlen) ||
-                !InjectChar(cx, &newchars, ')', limit, newlen) ||
-                !InjectChar(cx, &newchars, ';', limit, newlen)) {
-                return nullptr;
+            if (oldCodeLen == i || arrLen == 0) { goto injectfail; }
+            if (!InjectEat(oldCode, oldCodeLen, i, '{')) { goto injectfail; }
+            const char* inject = "var __seq = new Seq(X); __seq.map(function (__n) {";
+            if (!InjectString(cx, &code, inject, codeLimit, codeLen, arr, arrLen)) {
+                goto injectfail;
             }
-            i+= 2;
-        } else {
-            if (!InjectChar(cx, &newchars, oldchars[i], limit, newlen)) {
-                return nullptr;
+            continue;
+        }
+        // handle end (//?)
+        if (i + 3 <= oldCodeLen &&
+            oldCode[i] == '/' && oldCode[i+1] == '/' && oldCode[i+2] == '?') {
+            for (size_t j = 0; j < mapInRow; j++) {
+                if (!InjectChar(cx, &code, '}', codeLimit, codeLen) ||
+                    !InjectChar(cx, &code, ')', codeLimit, codeLen) ||
+                    !InjectChar(cx, &code, ';', codeLimit, codeLen)) {
+                    goto injectfail;
+                }
             }
+            mapInRow = 0;
+            i += 2; // skip 3 characters (2 here, 1 by for loop)
+            continue;
+        }
+        // handle the basic case
+        if (!InjectChar(cx, &code, oldCode[i], codeLimit, codeLen)) {
+            goto injectfail;
         }
     }
-    if (!InjectChar(cx, &newchars, 0, limit, newlen)) {
-        return nullptr;
+    if (!InjectChar(cx, &code, 0, codeLimit, codeLen)) {
+        goto injectfail;
     }
-    newlen--; // null terminator doesn't count
+    codeLen--; // null terminator doesn't count
 
-    js_free(arrname);
-    return newchars;
+    js_free(arr);
+    return code;
+
+injectfail:
+    if (code) {
+        js_free(code);
+    }
+    if (arr) {
+        js_free(arr);
+    }
+    return nullptr;
 }
 
 extern JS_PUBLIC_API(bool)
@@ -4909,15 +4953,21 @@ JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &opti
     for (size_t i = 0; i + 2 < length; i++) {
         if (chars[i] == '/' && chars[i+1] == '/' && chars[i+2] == '!') {
             size_t newlen = 0;
-            changed = true;
             temp = InjectCode(cx, chars, length, newlen);
-            if (!temp) {
-                return false;
+            if (temp) {
+                changed = true;
+                chars = temp;
+                length = newlen;
             }
-            chars = temp;
-            length = newlen;
             break;
         }
+    }
+    if (changed) {
+        for (size_t i = 0; i < length; i++) {
+            printf("%c", chars[i]);
+        }
+        printf("\n");
+        fflush(stdout);
     }
     CompileOptions options(cx, optionsArg);
     JS_ASSERT(!cx->runtime()->isAtomsCompartment(cx->compartment()));
