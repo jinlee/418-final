@@ -10,9 +10,13 @@ var mult = function(n) {
     return n * n;
 };
 
+var comp = function(a, b){
+    return a - b;
+};
+
 var done = function(res) {
     console.log(res);
-}
+};
 
 var seq = new Seq([0, 1, 2, 3]);
 
@@ -34,7 +38,7 @@ seq.map(add).map(add, done);
  *  function will use. Example below.
  */
 
-var actualData = [10, 20, 30, 40];
+var actualData = [40, 10, 30, 20];
 var reverseIndices = [3, 2, 1, 0];
 
 var seq = new Seq(reverseIndices);
@@ -78,6 +82,7 @@ var isPrime = function (n) {
     }
     return true;
 }
+
 
 var stress = new Seq(_.range(1000));
 stress.filter(isPrime, done);
