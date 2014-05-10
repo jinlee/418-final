@@ -53,7 +53,7 @@ space.
 It's clear that using web workers directly to achieve multithreading is not
 ideal. We wanted to provide an very simple api that abstracts away the
 underlying implementation and makes it easy to write parallel code. Thus we
-chose to implement three functions, `map`, `filter`, and `sort` that uses web
+chose to implement three functions, `map`, `filter`, and `sort`, that use web
 workers internally to parallelize the execution. Here's an example of their
 usage:
 
@@ -292,7 +292,9 @@ Next, we turned to keeping the image size constant while varying the number of
 web workers that were spawned. Now, as was discussed in assignment 1, we had to
 solve the problem of workload imbalance when parallelizing this mandelbrot
 rendering. To do this we simply interleave the work to be done to the web
-workers and piece back the results after the computation.
+workers and piece back the results after the computation. Since this test was
+utilizing more cores, we ran these tests on the Gates 3000 machines which have a
+total of 6 cores.
 
 Here's the graph that plots total computation time for different number of web
 workers spawned. Note that the 1 web worker case is the sequential
