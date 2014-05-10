@@ -61,8 +61,15 @@ var seq = new Seq([0, 1, 2, 3]);
 seq.map(foo); // returns [0, 1, 4, 9]
 {% endhighlight %}
 
+You can also pass in the number of web workers that should be spawned. Usually
+this should equal the number of cores that you have. If this isn't explicitly
+passed in, the library defaults to `2`.
 
-You can also pass in an callback function to be run after the map has finished.
+{% highlight javascript %}
+var seq = new Seq([0, 1, 2, 3], 4); // 4 web workers will spawn
+{% endhighlight %}
+
+You can pass in a callback function to be run after the map has finished.
 
 {% highlight javascript %}
 var done = function(res) {
@@ -113,4 +120,98 @@ var isPrime = function (n) {
 }
 primes.filter(isPrime, function (res) { console.log(res); });
 // only returns primes!
+{% endhighlight %}
+
+### Annotations
+
+With annotations, it is easier to take existing code and make it parallel.
+Furthremore, in browsers that do not support these annotations, the code
+maintains to be correct, although sequential.
+
+Here is an example of their usage:
+
+{% highlight javascript %}
+for (var i = 0; i < arr.length; i++) {
+    if (arr[i] === 0) {
+        arr[i] = 1234;
+    }
+    arr[i] *= arr[i];
+}
+{% endhighlight %}
+
+This code can be executed in parallel, and thus you can use annotations to
+parallelize as follows:
+
+{% highlight javascript %}
+//! :arr
+for (var i = 0; i < arr.length; i++) {
+    if (arr[i] === 0) {
+        arr[i] = 1234;
+    }
+    arr[i] *= arr[i];
+}
+//?
+{% endhighlight %}
+
+The `//!` denotes the beginning of the for loop. You must also pass in the name
+of the array that is being iterated over. The syntax is `:` followed by the
+array name.
+
+The `//?` is denoting what we call 'asynchronous dependency'. We will explore
+this more later.
+
+With these annotations, the browser will silently use the thread library and run
+multithreaded code.
+
+It is also possible to chain multiple for loops:
+{% highlight javascript %}
+//! :arr
+for (var i = 0; i < arr.length; i++) {
+    arr[i] *= arr[i];
+}
+
+//! :arr
+for (var i = 0; i < arr.length; i++) {
+    arr[i] -= arr[i];
+}
+//?
+{% endhighlight %}
+
+Under the hood, the first for loop gets executed using `map`, and after it has
+finished the second for loop is executed.
+
+The `//?` is used to denote 'asynchronous dependency' in the code. The problem
+is that the `map` function is asynchronous - it returns **before** the
+computation has finished.
+
+The problem is that in sequential code, code that executes after the for loop
+are executing **after** the computation in the for loop has finished. For
+example:
+
+{% highlight javascript %}
+for (var i = 0; i < arr.length; i++) {
+    // some parallel computation
+}
+
+for (var i = 0; i < arr.length; i++) {
+    // some computation that must be executed sequentially
+}
+{% endhighlight %}
+
+Here, the second for loop needs to run **after** the first for loop has
+finished. Thus the `//?` is a way to denote this dependency of the second for
+loop on the first parallel for loop.
+
+So the correct way to annotate this is as follows:
+
+{% highlight javascript %}
+//! :arr
+for (var i = 0; i < arr.length; i++) {
+    // some parallel computation
+}
+
+for (var i = 0; i < arr.length; i++) {
+    // some computation that must be executed sequentially
+}
+//?
 {% endhighlight %}

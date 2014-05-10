@@ -102,8 +102,8 @@ user.
     as we mentioned before, this meant that we were doing a lot of message
     passing between the master and the worker. Furthermore, this meant that we
     could not utilize transferable objects. Thus to reduce the overhead, we
-    switch to the partitioning scheme. This does mean that unbalanced workloads
-    will lead to bad performance.
+    switched to the partitioning scheme. But this does mean that unbalanced
+    workloads will lead to bad performance.
 
 [^2]:
     Here we see evidence of how web workers are implemented under the hood.
@@ -324,3 +324,5 @@ shown below:
 Equal work was performed by both project members.
 
 Thanks for reading!
+
+#### Footnotes ####
